@@ -168,8 +168,6 @@ unit_tests:
   - name: test_rule_baseline_anomaly_fixture
     model: rule_baseline_anomaly
     description: "Daily total (sent+recv) >= 5x the median of the account's earlier daily totals, >= 5000 USD, with >= 3 earlier days. ba_A and ba_E (day 5) alert. ba_B 3.8x, ba_C only 2 history days, ba_D below 5000 USD: none alert."
-    config:
-      tags: [hugo_rule]
     overrides:
       vars:
         baseline_ratio: 5
