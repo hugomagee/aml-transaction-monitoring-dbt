@@ -40,6 +40,12 @@ def main() -> None:
         sys.exit("usage: make eval RULE=<model name>   (e.g. rule_dummy_all)")
     rule = sys.argv[1]
     extra = f"{{tune_last_day: {sys.argv[2]}}}" if len(sys.argv) > 2 else "{}"
+    if (ROOT / "models" / "rules" / f"{rule}.sql").exists():
+        r = subprocess.run([DBT, "test", "--select", f"{rule},test_type:unit"], cwd=ROOT, env=ENV,
+                           capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(r.stdout[-3000:] + f"\nFixture failed for {rule}: fix it before evaluating on data.")
+        print(f"fixture for {rule}: PASS")
     print(dbt("run", "--select", rule, "--vars", extra).strip().splitlines()[-1])
     show("performance (account unit)", "rule_performance", rule, extra)
     show("recall by pattern type", "rule_pattern_recall", rule, extra)

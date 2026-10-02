@@ -4,7 +4,7 @@ VENV  := .venv
 PY    := $(VENV)/bin/python
 DBT   := DBT_PROFILES_DIR=. $(VENV)/bin/dbt
 
-.PHONY: setup data load build test eval clean
+.PHONY: setup data load build test test-rule eval clean
 
 setup:
 	/opt/homebrew/bin/python3.12 -m venv $(VENV) || python3 -m venv $(VENV)
@@ -17,13 +17,20 @@ data:
 load:
 	$(PY) scripts/load_raw.py
 
+# Rule fixtures (tag hugo_rule) are excluded until a rule is implemented; run them
+# with `make test-rule RULE=<name>`.
 build:
-	$(DBT) build
+	$(DBT) seed
+	$(DBT) build --exclude tag:hugo_rule
 
 test:
-	$(DBT) test
+	$(DBT) test --exclude tag:hugo_rule
 
-# make eval RULE=rule_fan_in_out
+# make test-rule RULE=rule_fan_in_out   (runs the hand-built fixture only)
+test-rule:
+	$(DBT) test --select "$(RULE),test_type:unit"
+
+# make eval RULE=rule_fan_in_out   (rules in models/rules must pass their fixture first)
 eval:
 	$(PY) scripts/eval_rule.py $(RULE)
 
