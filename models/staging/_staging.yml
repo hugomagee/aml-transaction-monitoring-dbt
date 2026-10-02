@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: stg_transactions
+    description: Typed transactions with a deterministic txn_id and (bank|account) account ids.
+    columns:
+      - name: txn_id
+        data_tests: [unique, not_null]
+      - name: txn_ts
+        data_tests: [not_null]
+      - name: from_account_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_accounts'), field: account_id}}
+      - name: to_account_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_accounts'), field: account_id}}
+      - name: payment_currency
+        data_tests:
+          - relationships: {arguments: {to: ref('fx_rates_approx'), field: currency}}
+      - name: receiving_currency
+        data_tests:
+          - relationships: {arguments: {to: ref('fx_rates_approx'), field: currency}}
+      - name: payment_format
+        data_tests:
+          - relationships: {arguments: {to: ref('payment_format_risk'), field: payment_format}}
+      - name: amount_paid
+        data_tests: [positive]
+      - name: amount_received
+        data_tests: [positive]
+      - name: is_laundering
+        data_tests:
+          - accepted_values: {arguments: {values: [0, 1], quote: false}}
+
+  - name: stg_accounts
+    description: Accounts keyed by (bank|account); account numbers alone are not unique.
+    columns:
+      - name: account_id
+        data_tests: [unique, not_null]
+      - name: entity_id
+        data_tests: [not_null]
+
+  - name: stg_patterns
+    description: Patterns.txt rows. For diagnosis only; never used as the label.
+    columns:
+      - name: pattern_id
+        data_tests: [not_null]
+      - name: pattern_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [FAN-OUT, FAN-IN, GATHER-SCATTER, SCATTER-GATHER, CYCLE, BIPARTITE, STACK, RANDOM]
+      - name: is_laundering
+        data_tests:
+          - accepted_values: {arguments: {values: [1], quote: false}}
