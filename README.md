@@ -3,7 +3,7 @@
 [![ci](https://github.com/hugomagee/aml-transaction-monitoring-dbt/actions/workflows/ci.yml/badge.svg)](https://github.com/hugomagee/aml-transaction-monitoring-dbt/actions/workflows/ci.yml)
 
 <!-- BEGIN:headline -->
-On the synthetic IBM AMLworld data, the best hand-written rule (fan-in/out) alerts on 5.0 of every 1,000 accounts at 7.1% precision against a 0.73% base rate (about 10x lift, days 8-18 of HI-Small), but a gradient-boosted model on point-in-time account features beats every rule at equal volume (35.4% precision at 5 alerts per 1,000 on held-out accounts; 24.5% after removing four features that proxy simulator behaviour), so the rules are a baseline, not a detector.
+On the synthetic IBM AMLworld data, the best hand-written rule (fan-in/out) alerts on 5.0 of every 1,000 accounts at 7.1% precision against a 0.73% base rate (about 10x lift, days 8-18 of HI-Small). A gradient-boosted model on point-in-time account features does better at equal volume on HI-Small (24.5% precision at 5 alerts per 1,000 on held-out accounts after removing four features that proxy simulator behaviour; 35.4% with them), but on LI-Small it is only level with fan-in/out at that volume, so the rules are a baseline, not a detector.
 <!-- END:headline -->
 
 > **Authorship.** The dbt models, rule SQL, tests, scripts and documentation in this repository were
