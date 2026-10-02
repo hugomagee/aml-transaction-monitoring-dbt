@@ -1,0 +1,215 @@
+version: 2
+
+unit_tests:
+  - name: test_rule_fan_in_out_fixture
+    model: rule_fan_in_out
+    description: "fi_A fan-in (5 senders in 4h) and fi_D fan-out (5 receivers in 8h) alert; fi_B (4 senders), fi_C (spread over 80h), fi_E (one counterparty x6) do not."
+    config:
+      tags: [hugo_rule]
+    overrides:
+      vars:
+        fan_min_counterparties: 5
+        fan_window_hours: 24
+    given:
+      - input: ref('int_edges')
+        rows:
+          - {txn_id: 1, txn_ts: "2022-09-01 08:00:00", src: "fi_s1", dst: "fi_A", amount_usd: 100.0}
+          - {txn_id: 2, txn_ts: "2022-09-01 09:00:00", src: "fi_s2", dst: "fi_A", amount_usd: 100.0}
+          - {txn_id: 3, txn_ts: "2022-09-01 10:00:00", src: "fi_s3", dst: "fi_A", amount_usd: 100.0}
+          - {txn_id: 4, txn_ts: "2022-09-01 11:00:00", src: "fi_s4", dst: "fi_A", amount_usd: 100.0}
+          - {txn_id: 5, txn_ts: "2022-09-01 12:00:00", src: "fi_s5", dst: "fi_A", amount_usd: 100.0}
+          - {txn_id: 6, txn_ts: "2022-09-01 08:00:00", src: "fi_t1", dst: "fi_B", amount_usd: 100.0}
+          - {txn_id: 7, txn_ts: "2022-09-01 09:00:00", src: "fi_t2", dst: "fi_B", amount_usd: 100.0}
+          - {txn_id: 8, txn_ts: "2022-09-01 10:00:00", src: "fi_t3", dst: "fi_B", amount_usd: 100.0}
+          - {txn_id: 9, txn_ts: "2022-09-01 11:00:00", src: "fi_t4", dst: "fi_B", amount_usd: 100.0}
+          - {txn_id: 10, txn_ts: "2022-09-01 08:00:00", src: "fi_u1", dst: "fi_C", amount_usd: 100.0}
+          - {txn_id: 11, txn_ts: "2022-09-02 04:00:00", src: "fi_u2", dst: "fi_C", amount_usd: 100.0}
+          - {txn_id: 12, txn_ts: "2022-09-03 00:00:00", src: "fi_u3", dst: "fi_C", amount_usd: 100.0}
+          - {txn_id: 13, txn_ts: "2022-09-03 20:00:00", src: "fi_u4", dst: "fi_C", amount_usd: 100.0}
+          - {txn_id: 14, txn_ts: "2022-09-04 16:00:00", src: "fi_u5", dst: "fi_C", amount_usd: 100.0}
+          - {txn_id: 15, txn_ts: "2022-09-01 08:00:00", src: "fi_D", dst: "fi_r1", amount_usd: 100.0}
+          - {txn_id: 16, txn_ts: "2022-09-01 10:00:00", src: "fi_D", dst: "fi_r2", amount_usd: 100.0}
+          - {txn_id: 17, txn_ts: "2022-09-01 12:00:00", src: "fi_D", dst: "fi_r3", amount_usd: 100.0}
+          - {txn_id: 18, txn_ts: "2022-09-01 14:00:00", src: "fi_D", dst: "fi_r4", amount_usd: 100.0}
+          - {txn_id: 19, txn_ts: "2022-09-01 16:00:00", src: "fi_D", dst: "fi_r5", amount_usd: 100.0}
+          - {txn_id: 20, txn_ts: "2022-09-01 08:00:00", src: "fi_E", dst: "fi_Z", amount_usd: 100.0}
+          - {txn_id: 21, txn_ts: "2022-09-01 09:00:00", src: "fi_E", dst: "fi_Z", amount_usd: 100.0}
+          - {txn_id: 22, txn_ts: "2022-09-01 10:00:00", src: "fi_E", dst: "fi_Z", amount_usd: 100.0}
+          - {txn_id: 23, txn_ts: "2022-09-01 11:00:00", src: "fi_E", dst: "fi_Z", amount_usd: 100.0}
+          - {txn_id: 24, txn_ts: "2022-09-01 12:00:00", src: "fi_E", dst: "fi_Z", amount_usd: 100.0}
+          - {txn_id: 25, txn_ts: "2022-09-01 13:00:00", src: "fi_E", dst: "fi_Z", amount_usd: 100.0}
+    expect:
+      rows:
+        - {rule_id: "rule_fan_in_out", account_id: "fi_A", alert_ts: "2022-09-01 12:00:00"}
+        - {rule_id: "rule_fan_in_out", account_id: "fi_D", alert_ts: "2022-09-01 16:00:00"}
+
+  - name: test_rule_structuring_fixture
+    model: rule_structuring
+    description: "st_A: 3 sends in [9000,10000) within 72h alerts at the 3rd. st_B only 2; st_C spread over 8 days; st_D above threshold; st_E below band; st_F self-transfers: none alert."
+    config:
+      tags: [hugo_rule]
+    overrides:
+      vars:
+        structuring_threshold_usd: 10000
+        structuring_band_pct: 0.1
+        structuring_min_txns: 3
+        structuring_window_hours: 72
+    given:
+      - input: ref('int_txn_enriched')
+        rows:
+          - {txn_id: 1, txn_ts: "2022-09-01 08:00:00", from_account_id: "st_A", amount_usd: 9500, is_self_transfer: false}
+          - {txn_id: 2, txn_ts: "2022-09-02 04:00:00", from_account_id: "st_A", amount_usd: 9800, is_self_transfer: false}
+          - {txn_id: 3, txn_ts: "2022-09-03 00:00:00", from_account_id: "st_A", amount_usd: 9200, is_self_transfer: false}
+          - {txn_id: 4, txn_ts: "2022-09-01 08:00:00", from_account_id: "st_B", amount_usd: 9500, is_self_transfer: false}
+          - {txn_id: 5, txn_ts: "2022-09-02 04:00:00", from_account_id: "st_B", amount_usd: 9800, is_self_transfer: false}
+          - {txn_id: 6, txn_ts: "2022-09-01 08:00:00", from_account_id: "st_C", amount_usd: 9500, is_self_transfer: false}
+          - {txn_id: 7, txn_ts: "2022-09-05 08:00:00", from_account_id: "st_C", amount_usd: 9800, is_self_transfer: false}
+          - {txn_id: 8, txn_ts: "2022-09-09 16:00:00", from_account_id: "st_C", amount_usd: 9200, is_self_transfer: false}
+          - {txn_id: 9, txn_ts: "2022-09-01 08:00:00", from_account_id: "st_D", amount_usd: 10500, is_self_transfer: false}
+          - {txn_id: 10, txn_ts: "2022-09-01 18:00:00", from_account_id: "st_D", amount_usd: 10500, is_self_transfer: false}
+          - {txn_id: 11, txn_ts: "2022-09-02 04:00:00", from_account_id: "st_D", amount_usd: 10500, is_self_transfer: false}
+          - {txn_id: 12, txn_ts: "2022-09-01 08:00:00", from_account_id: "st_E", amount_usd: 8000, is_self_transfer: false}
+          - {txn_id: 13, txn_ts: "2022-09-01 18:00:00", from_account_id: "st_E", amount_usd: 8000, is_self_transfer: false}
+          - {txn_id: 14, txn_ts: "2022-09-02 04:00:00", from_account_id: "st_E", amount_usd: 8000, is_self_transfer: false}
+          - {txn_id: 15, txn_ts: "2022-09-01 08:00:00", from_account_id: "st_F", amount_usd: 9500, is_self_transfer: true}
+          - {txn_id: 16, txn_ts: "2022-09-01 18:00:00", from_account_id: "st_F", amount_usd: 9500, is_self_transfer: true}
+          - {txn_id: 17, txn_ts: "2022-09-02 04:00:00", from_account_id: "st_F", amount_usd: 9500, is_self_transfer: true}
+    expect:
+      rows:
+        - {rule_id: "rule_structuring", account_id: "st_A", alert_ts: "2022-09-03 00:00:00"}
+
+  - name: test_rule_pass_through_fixture
+    model: rule_pass_through
+    description: "pt_M forwards 96% in 2h and pt_R forwards 100% over two sends (alert at the completing send). pt_N forwards 40%, pt_O forwards after 30h, pt_P receives under the minimum, pt_Q sends it straight back to the sender: none alert."
+    config:
+      tags: [hugo_rule]
+    overrides:
+      vars:
+        pass_min_amount_usd: 1000
+        pass_forward_ratio: 0.9
+        pass_window_hours: 24
+    given:
+      - input: ref('int_edges')
+        rows:
+          - {txn_id: 1, txn_ts: "2022-09-01 08:00:00", src: "pt_S1", dst: "pt_M", amount_usd: 5000}
+          - {txn_id: 2, txn_ts: "2022-09-01 10:00:00", src: "pt_M", dst: "pt_X", amount_usd: 4800}
+          - {txn_id: 3, txn_ts: "2022-09-01 08:00:00", src: "pt_S2", dst: "pt_N", amount_usd: 5000}
+          - {txn_id: 4, txn_ts: "2022-09-01 10:00:00", src: "pt_N", dst: "pt_X", amount_usd: 2000}
+          - {txn_id: 5, txn_ts: "2022-09-01 08:00:00", src: "pt_S3", dst: "pt_O", amount_usd: 5000}
+          - {txn_id: 6, txn_ts: "2022-09-02 14:00:00", src: "pt_O", dst: "pt_X", amount_usd: 5000}
+          - {txn_id: 7, txn_ts: "2022-09-01 08:00:00", src: "pt_S5", dst: "pt_P", amount_usd: 500}
+          - {txn_id: 8, txn_ts: "2022-09-01 10:00:00", src: "pt_P", dst: "pt_X", amount_usd: 500}
+          - {txn_id: 9, txn_ts: "2022-09-01 08:00:00", src: "pt_S4", dst: "pt_Q", amount_usd: 5000}
+          - {txn_id: 10, txn_ts: "2022-09-01 10:00:00", src: "pt_Q", dst: "pt_S4", amount_usd: 5000}
+          - {txn_id: 11, txn_ts: "2022-09-01 08:00:00", src: "pt_S6", dst: "pt_R", amount_usd: 5000}
+          - {txn_id: 12, txn_ts: "2022-09-01 09:00:00", src: "pt_R", dst: "pt_Y1", amount_usd: 2500}
+          - {txn_id: 13, txn_ts: "2022-09-01 13:00:00", src: "pt_R", dst: "pt_Y2", amount_usd: 2500}
+    expect:
+      rows:
+        - {rule_id: "rule_pass_through", account_id: "pt_M", alert_ts: "2022-09-01 10:00:00"}
+        - {rule_id: "rule_pass_through", account_id: "pt_R", alert_ts: "2022-09-01 13:00:00"}
+
+  - name: test_rule_cycles_fixture
+    model: rule_cycles
+    description: "cy_A,cy_B,cy_C form a time-ordered 3-cycle closing at the 3rd edge. Not alerted: unordered cy_D/E/F, 6-hop ring cy_G..L, sub-minimum cy_M/N/O, hub cy_P (out_degree 100 > cap 50), cy_S/T/U spanning 80h > 72h."
+    config:
+      tags: [hugo_rule]
+    overrides:
+      vars:
+        cycle_max_hops: 5
+        cycle_min_amount_usd: 1000
+        cycle_window_hours: 72
+        cycle_max_degree: 50
+    given:
+      - input: ref('int_edges')
+        rows:
+          - {txn_id: 1, txn_ts: "2022-09-01 08:00:00", src: "cy_A", dst: "cy_B", amount_usd: 5000}
+          - {txn_id: 2, txn_ts: "2022-09-01 09:00:00", src: "cy_B", dst: "cy_C", amount_usd: 5000}
+          - {txn_id: 3, txn_ts: "2022-09-01 10:00:00", src: "cy_C", dst: "cy_A", amount_usd: 5000}
+          - {txn_id: 4, txn_ts: "2022-09-01 13:00:00", src: "cy_D", dst: "cy_E", amount_usd: 5000}
+          - {txn_id: 5, txn_ts: "2022-09-01 09:00:00", src: "cy_E", dst: "cy_F", amount_usd: 5000}
+          - {txn_id: 6, txn_ts: "2022-09-01 14:00:00", src: "cy_F", dst: "cy_D", amount_usd: 5000}
+          - {txn_id: 7, txn_ts: "2022-09-01 08:00:00", src: "cy_G", dst: "cy_H", amount_usd: 5000}
+          - {txn_id: 8, txn_ts: "2022-09-01 09:00:00", src: "cy_H", dst: "cy_I", amount_usd: 5000}
+          - {txn_id: 9, txn_ts: "2022-09-01 10:00:00", src: "cy_I", dst: "cy_J", amount_usd: 5000}
+          - {txn_id: 10, txn_ts: "2022-09-01 11:00:00", src: "cy_J", dst: "cy_K", amount_usd: 5000}
+          - {txn_id: 11, txn_ts: "2022-09-01 12:00:00", src: "cy_K", dst: "cy_L", amount_usd: 5000}
+          - {txn_id: 12, txn_ts: "2022-09-01 13:00:00", src: "cy_L", dst: "cy_G", amount_usd: 5000}
+          - {txn_id: 13, txn_ts: "2022-09-01 08:00:00", src: "cy_M", dst: "cy_N", amount_usd: 500}
+          - {txn_id: 14, txn_ts: "2022-09-01 09:00:00", src: "cy_N", dst: "cy_O", amount_usd: 500}
+          - {txn_id: 15, txn_ts: "2022-09-01 10:00:00", src: "cy_O", dst: "cy_M", amount_usd: 500}
+          - {txn_id: 16, txn_ts: "2022-09-01 08:00:00", src: "cy_P", dst: "cy_Q", amount_usd: 5000}
+          - {txn_id: 17, txn_ts: "2022-09-01 09:00:00", src: "cy_Q", dst: "cy_R", amount_usd: 5000}
+          - {txn_id: 18, txn_ts: "2022-09-01 10:00:00", src: "cy_R", dst: "cy_P", amount_usd: 5000}
+          - {txn_id: 19, txn_ts: "2022-09-01 08:00:00", src: "cy_S", dst: "cy_T", amount_usd: 5000}
+          - {txn_id: 20, txn_ts: "2022-09-03 00:00:00", src: "cy_T", dst: "cy_U", amount_usd: 5000}
+          - {txn_id: 21, txn_ts: "2022-09-04 16:00:00", src: "cy_U", dst: "cy_S", amount_usd: 5000}
+      - input: ref('int_account_profile')
+        rows:
+          - {account_id: "cy_A", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_B", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_C", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_D", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_E", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_F", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_G", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_H", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_I", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_J", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_K", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_L", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_M", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_N", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_O", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_P", out_degree: 100, in_degree: 2}
+          - {account_id: "cy_Q", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_R", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_S", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_T", out_degree: 2, in_degree: 2}
+          - {account_id: "cy_U", out_degree: 2, in_degree: 2}
+    expect:
+      rows:
+        - {rule_id: "rule_cycles", account_id: "cy_A", alert_ts: "2022-09-01 10:00:00"}
+        - {rule_id: "rule_cycles", account_id: "cy_B", alert_ts: "2022-09-01 10:00:00"}
+        - {rule_id: "rule_cycles", account_id: "cy_C", alert_ts: "2022-09-01 10:00:00"}
+
+  - name: test_rule_baseline_anomaly_fixture
+    model: rule_baseline_anomaly
+    description: "Daily total (sent+recv) >= 5x the median of the account's earlier daily totals, >= 5000 USD, with >= 3 earlier days. ba_A and ba_E (day 5) alert. ba_B 3.8x, ba_C only 2 history days, ba_D below 5000 USD: none alert."
+    config:
+      tags: [hugo_rule]
+    overrides:
+      vars:
+        baseline_ratio: 5
+        baseline_min_history_days: 3
+        baseline_min_usd: 5000
+    given:
+      - input: ref('int_account_daily')
+        rows:
+          - {account_id: "ba_A", day: "2022-09-01", sent_usd: 1000.0, recv_usd: 0.0}
+          - {account_id: "ba_A", day: "2022-09-02", sent_usd: 1200.0, recv_usd: 0.0}
+          - {account_id: "ba_A", day: "2022-09-03", sent_usd: 900.0, recv_usd: 0.0}
+          - {account_id: "ba_A", day: "2022-09-04", sent_usd: 1100.0, recv_usd: 0.0}
+          - {account_id: "ba_A", day: "2022-09-05", sent_usd: 9000.0, recv_usd: 0.0}
+          - {account_id: "ba_B", day: "2022-09-01", sent_usd: 1000.0, recv_usd: 0.0}
+          - {account_id: "ba_B", day: "2022-09-02", sent_usd: 1200.0, recv_usd: 0.0}
+          - {account_id: "ba_B", day: "2022-09-03", sent_usd: 900.0, recv_usd: 0.0}
+          - {account_id: "ba_B", day: "2022-09-04", sent_usd: 1100.0, recv_usd: 0.0}
+          - {account_id: "ba_B", day: "2022-09-05", sent_usd: 4000.0, recv_usd: 0.0}
+          - {account_id: "ba_C", day: "2022-09-01", sent_usd: 1000.0, recv_usd: 0.0}
+          - {account_id: "ba_C", day: "2022-09-02", sent_usd: 1200.0, recv_usd: 0.0}
+          - {account_id: "ba_C", day: "2022-09-03", sent_usd: 20000.0, recv_usd: 0.0}
+          - {account_id: "ba_D", day: "2022-09-01", sent_usd: 100.0, recv_usd: 0.0}
+          - {account_id: "ba_D", day: "2022-09-02", sent_usd: 100.0, recv_usd: 0.0}
+          - {account_id: "ba_D", day: "2022-09-03", sent_usd: 100.0, recv_usd: 0.0}
+          - {account_id: "ba_D", day: "2022-09-04", sent_usd: 800.0, recv_usd: 0.0}
+          - {account_id: "ba_E", day: "2022-09-01", sent_usd: 1000.0, recv_usd: 0.0}
+          - {account_id: "ba_E", day: "2022-09-02", sent_usd: 1000.0, recv_usd: 0.0}
+          - {account_id: "ba_E", day: "2022-09-03", sent_usd: 1000.0, recv_usd: 0.0}
+          - {account_id: "ba_E", day: "2022-09-04", sent_usd: 1000.0, recv_usd: 0.0}
+          - {account_id: "ba_E", day: "2022-09-05", sent_usd: 10000.0, recv_usd: 0.0}
+          - {account_id: "ba_E", day: "2022-09-06", sent_usd: 1000.0, recv_usd: 0.0}
+    expect:
+      rows:
+        - {rule_id: "rule_baseline_anomaly", account_id: "ba_A", alert_ts: "2022-09-05 00:00:00"}
+        - {rule_id: "rule_baseline_anomaly", account_id: "ba_E", alert_ts: "2022-09-05 00:00:00"}
