@@ -9,6 +9,8 @@ Per dataset prefix (hi, li) this creates:
                           tagged with pattern_id and pattern_type.
 Usage: python scripts/load_raw.py [hi li]   (default: whatever is in data/raw)
 """
+import gzip
+import os
 import re
 import sys
 from pathlib import Path
@@ -17,8 +19,18 @@ import duckdb
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-RAW = ROOT / "data" / "raw"
-DB = ROOT / "data" / "aml.duckdb"
+# AML_RAW_DIR / AML_DB let CI load the committed sample (ci/sample, .gz files)
+# into its own database; defaults are the full data under data/.
+RAW = Path(os.environ.get("AML_RAW_DIR", ROOT / "data" / "raw"))
+DB = Path(os.environ.get("AML_DB", ROOT / "data" / "aml.duckdb"))
+
+
+def find(name: str) -> Path:
+    """data/raw holds plain files; the CI sample is gzipped."""
+    for cand in (RAW / name, RAW / f"{name}.gz"):
+        if cand.exists():
+            return cand
+    raise FileNotFoundError(f"{name}[.gz] not found in {RAW}")
 
 TXN_COLS = ["timestamp", "from_bank", "from_account", "to_bank", "to_account",
             "amount_received", "receiving_currency", "amount_paid",
@@ -29,7 +41,8 @@ BEGIN = re.compile(r"^BEGIN LAUNDERING ATTEMPT - (.+?)(?::|$)")
 
 def parse_patterns(path: Path) -> pd.DataFrame:
     rows, pid, ptype = [], 0, None
-    for line in path.read_text().splitlines():
+    text = gzip.open(path, "rt").read() if path.suffix == ".gz" else path.read_text()
+    for line in text.splitlines():
         line = line.strip()
         if not line:
             continue
@@ -45,7 +58,7 @@ def parse_patterns(path: Path) -> pd.DataFrame:
 
 def load(con: duckdb.DuckDBPyConnection, p: str) -> None:
     name = p.upper()
-    trans, accs, pats = (RAW / f"{name}-Small_{s}" for s in
+    trans, accs, pats = (find(f"{name}-Small_{s}") for s in
                          ("Trans.csv", "accounts.csv", "Patterns.txt"))
     con.execute(f"""create or replace table raw.{p}_transactions as
         select * from read_csv('{trans}', header=true, all_varchar=true,
@@ -62,7 +75,8 @@ def load(con: duckdb.DuckDBPyConnection, p: str) -> None:
 
 def main() -> None:
     wanted = sys.argv[1:] or [p for p in ("hi", "li")
-                              if (RAW / f"{p.upper()}-Small_Trans.csv").exists()]
+                              if any((RAW / f"{p.upper()}-Small_Trans.csv{x}").exists() for x in ("", ".gz"))]
+    DB.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(DB))
     con.execute("create schema if not exists raw")
     for p in wanted:
