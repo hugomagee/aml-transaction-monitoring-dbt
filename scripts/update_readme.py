@@ -11,6 +11,7 @@ import duckdb
 ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 ml = json.loads((ROOT / "docs" / "ml_results.json").read_text())
+NO_ARTIFACT = "ML base, no artifact features"
 
 
 def q(db: str, sql: str):
@@ -49,10 +50,12 @@ def headline() -> str:
     prec, per, base = r[3], r[5], r[6]
     m = {x["method"]: x for x in ml["HI_validate"]["rows"]}
     mlp = m["ML base"]["b5"][0]
+    abl = m[NO_ARTIFACT]["b5"][0]
     return (f"On the synthetic IBM AMLworld data, the best hand-written rule (fan-in/out) alerts on {per:.1f} of every "
             f"1,000 accounts at {prec:.1%} precision against a {base:.2%} base rate (about {prec / base:.0f}x lift, days 8-18 of "
             f"HI-Small), but a gradient-boosted model on point-in-time account features beats every rule at equal volume "
-            f"({mlp:.1%} precision at 5 alerts per 1,000 on held-out accounts), so the rules are a baseline, not a detector.")
+            f"({mlp:.1%} precision at 5 alerts per 1,000 on held-out accounts; {abl:.1%} after removing four features that proxy "
+            f"simulator behaviour), so the rules are a baseline, not a detector.")
 
 
 def results_table() -> str:
@@ -83,7 +86,7 @@ def ml_table() -> str:
         if key not in ml:
             continue
         d = ml[key]
-        keep = ["rule_fan_in_out", "rule_cycles", "combined_excl_baseline", "ML base", "ML base+rules"]
+        keep = ["rule_fan_in_out", "rule_cycles", "combined_excl_baseline", "ML base", NO_ARTIFACT, "ML base+rules"]
         rows = {r["method"]: r for r in d["rows"]}
         out.append(f"**{label}** (base rate {d['info']['base']:.2%}, {d['info']['accounts']:,} accounts)\n")
         out.append("| method | PR-AUC | precision (recall) at 1 / 1,000 | at 5 / 1,000 | at 10 / 1,000 |\n|---|---|---|---|---|")
@@ -95,7 +98,9 @@ def ml_table() -> str:
                 cells.append(f"{p:.1%} ({rc:.1%})" + ("" if v >= 0.9 * b else f" at only {v:.2f}/1,000"))
             out.append(f"| {k} | {r['pr_auc']:.3f} | " + " | ".join(cells) + " |")
         out.append("")
-    out.append("Equal-volume comparison, ties resolved pro rata; a rule with fewer alerts than the budget uses all of them. "
+    out.append("`ML base, no artifact features` drops `f_n_currencies`, `f_n_self`, `f_frac_risky_format` and "
+               "`f_frac_cross_currency`, an exclusion list declared before the ablation was run (same model and split; one ablation configuration, see the reproducibility note in docs/ml_results.md). "
+               "Equal-volume comparison, ties resolved pro rata; a rule with fewer alerts than the budget uses all of them. "
                "Details, caveats and feature importances: [docs/ml_results.md](docs/ml_results.md).")
     return "\n".join(out)
 
