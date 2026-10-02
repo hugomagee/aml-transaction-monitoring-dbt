@@ -4,7 +4,7 @@ VENV  := .venv
 PY    := $(VENV)/bin/python
 DBT   := DBT_PROFILES_DIR=. $(VENV)/bin/dbt
 
-.PHONY: setup data load build test test-rule eval clean
+.PHONY: setup data load build test test-rule eval ci-sample ci clean
 
 setup:
 	/opt/homebrew/bin/python3.12 -m venv $(VENV) || python3 -m venv $(VENV)
@@ -36,3 +36,12 @@ eval:
 
 clean:
 	rm -rf target logs
+
+# Regenerate the committed CI sample from the full HI-Small files (needs `make data`).
+ci-sample:
+	$(PY) scripts/make_ci_sample.py
+
+# Reproduce CI locally: load the committed sample into data/ci.duckdb and build on it.
+ci:
+	AML_RAW_DIR=ci/sample AML_DB=data/ci.duckdb $(PY) scripts/load_raw.py hi
+	AML_DB=data/ci.duckdb $(DBT) build --exclude tag:hugo_rule
