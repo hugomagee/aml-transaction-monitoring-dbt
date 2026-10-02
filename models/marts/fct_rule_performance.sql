@@ -1,4 +1,4 @@
-{% for r in wired_rules() %}
-select * from ({{ rule_performance(ref(r), r) }})
+{% for t in eval_targets() %}
+select * from ({{ rule_performance(t[0], t[1]) }})
 {% if not loop.last %}union all{% endif %}
 {% endfor %}
