@@ -1,3 +1,3 @@
 {# Rules whose alerts feed fct_alerts and the fct_rule_* evaluation marts.
-   Hugo's five rules are added here when each is wired in (build step 6). #}
-{% macro wired_rules() %}{{ return(['rule_dummy_all', 'rule_dummy_none']) }}{% endmacro %}
+   The five rules (autopilot, Claude Code) are added here as each is finished. #}
+{% macro wired_rules() %}{{ return(['rule_dummy_all', 'rule_dummy_none', 'rule_fan_in_out']) }}{% endmacro %}
