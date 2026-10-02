@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: int_txn_enriched
+    columns:
+      - name: txn_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships: {arguments: {to: ref('stg_transactions'), field: txn_id}}
+      - name: amount_usd
+        data_tests: [not_null, positive]
+      - name: amount_received_usd
+        data_tests: [not_null, positive]
+      - name: format_risk_weight
+        data_tests: [not_null]
+      - name: day_index
+        data_tests: [not_null]
+  - name: int_edges
+    columns:
+      - name: txn_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships: {arguments: {to: ref('stg_transactions'), field: txn_id}}
+      - name: src
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_accounts'), field: account_id}}
+      - name: dst
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_accounts'), field: account_id}}
+  - name: int_account_daily
+    columns:
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_accounts'), field: account_id}}
+      - name: day
+        data_tests: [not_null]
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {columns: [account_id, day]}
+  - name: int_account_profile
+    columns:
+      - name: account_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships: {arguments: {to: ref('stg_accounts'), field: account_id}}
+      - name: is_laundering_account
+        data_tests: [not_null]
