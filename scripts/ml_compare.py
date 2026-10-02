@@ -30,6 +30,18 @@ ROOT = Path(__file__).resolve().parent.parent
 BUDGETS = [1, 5, 10]
 RULES = ["rule_fan_in_out", "rule_structuring", "rule_pass_through", "rule_cycles", "rule_baseline_anomaly"]
 HEADLINE = RULES[:4]
+# ABLATION, declared before the ablation was run (see git history): features that are proxies for how
+# the simulator assigns currencies, payment formats or self-transfers. Removed in the model
+# "ML base, no artifact features"; the list is not edited after seeing results.
+ARTIFACT_FEATURES = {
+    "f_n_currencies": "number of distinct currencies an account pays in: currency is assigned by the simulator",
+    "f_n_self": "self-transfer count: almost all are the 'Reinvestment' format the simulator generates",
+    "f_frac_risky_format": "share of cash/bitcoin/wire/cheque payments: depends on how the simulator picks formats",
+    "f_frac_cross_currency": "share of cross-currency payments: the same currency assignment again",
+}
+# Kept on purpose, residual risk stated in docs/ml_results.md: USD amounts (mix FX and currency),
+# entity_type, and the timing/degree/rate features.
+NO_ARTIFACT = "ML base, no artifact features"
 PARAMS = dict(max_iter=300, learning_rate=0.05, max_leaf_nodes=15, min_samples_leaf=50,
               l2_regularization=1.0, early_stopping=False, random_state=0)
 
@@ -176,10 +188,12 @@ def main() -> None:
     hi["train"] = hi["account_id"].map(in_train_group)
     feats_a = base_cols(hi)
     feats_b = feats_a + rule_cols(hi)
+    feats_c = [c for c in feats_a if c not in ARTIFACT_FEATURES]
+    assert len(feats_c) == len(feats_a) - len(ARTIFACT_FEATURES)
     tr = hi[(hi.split == "tune") & hi.train]
     y_tr = tr["label"].astype(int)
     models = {}
-    for name, cols in (("ML base", feats_a), ("ML base+rules", feats_b)):
+    for name, cols in (("ML base", feats_a), ("ML base+rules", feats_b), (NO_ARTIFACT, feats_c)):
         m = HistGradientBoostingClassifier(**PARAMS).fit(design(tr, cols), y_tr)
         models[name] = (m, cols)
     # account-disjointness is by construction; assert it
