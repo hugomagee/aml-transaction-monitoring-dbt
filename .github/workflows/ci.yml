@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dbt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      # Skeleton: parses the project only. The deterministic ~100k-row sample
+      # build (fixed seed, stratified to keep laundering rows) is added once
+      # models exist. The full dataset never runs in CI.
+      - run: DBT_PROFILES_DIR=. dbt parse

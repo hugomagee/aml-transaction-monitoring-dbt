@@ -1,0 +1,64 @@
+# CLAUDE.md: aml-transaction-monitoring-dbt
+
+Owner: Hugo (github.com/hugomagee). Goal: a portfolio project that shows SQL + data modelling on bank-style operations data, for data science roles at Swiss banks/insurers (Zurich, Geneva). Read this file fully before doing anything. Re-read it at the start of every session.
+
+## Non-negotiables
+1. README leads with **Input, Transformation, Output** (in that order), then Limitations. A hiring manager asks about input and transformation, not output. Limitations must be honest.
+2. Stack: dbt-core + dbt-duckdb, local, free. GitHub Actions CI. dbt tests on every model.
+3. Small, frequent commits. Conventional Commits (`feat(staging): ...`, `test: ...`, `docs: ...`, `chore: ...`, `ci: ...`). Never one giant commit. Commit after each model or logical unit.
+4. Never overclaim. Every number in the README must be reproduced by a command in the repo. If a result is disappointing, report it as is.
+5. No secrets in the repo. Raw data is gitignored. Never commit the Kaggle CSVs.
+6. Work ownership is split (see "Who writes what"). Do not write the detection-rule SQL marked HUGO unless Hugo explicitly says "autopilot rules". If he does, mark those files `-- AUTHORED BY CLAUDE CODE` and say so in the README.
+
+## Dataset (verify before relying on it)
+IBM AMLworld, Kaggle `ealtman2019/ibm-transactions-for-anti-money-laundering-aml`. Use **HI-Small** for development and **LI-Small** as a never-tuned out-of-sample check. Do not touch Medium/Large except an optional timing test.
+Files: `HI-Small_Trans.csv`, `HI-Small_accounts.csv`, `HI-Small_Patterns.txt` (and LI-Small equivalents).
+Expected (UNVERIFIED, inspect real headers first and correct this section): transactions have `Timestamp, From Bank, Account, To Bank, Account, Amount Received, Receiving Currency, Amount Paid, Payment Currency, Payment Format, Is Laundering`. Note the **duplicate `Account` header**; rename at ingestion (`from_account`, `to_account`). Accounts: `Bank Name, Bank ID, Account Number, Entity ID, Entity Name`.
+Known facts: HI-Small ~5.08M transactions, ~0.1% laundering, 370 pattern groups, short (~10 day) window, multi-currency with no FX table. Labels are on transactions, not accounts. `Patterns.txt` does not cover every labelled transaction; use it to tag pattern type for diagnosis only, never as the label.
+Download needs Kaggle credentials (`~/.kaggle/kaggle.json`). If missing, stop and ask Hugo; do not fabricate data. Write `scripts/download_data.sh`.
+
+## Key decisions (already made, do not relitigate)
+- **Alert unit: account.** Account label = account is an endpoint of at least one `Is Laundering = 1` transaction. Also report transaction-level recall (share of laundering transactions touching at least one alerted account).
+- **FX:** seed `seeds/fx_rates_approx.csv` with documented approximate USD rates. Normalise to `amount_usd`. State in README that rates are static approximations and that this is an assumption, not data.
+- **Splits:** tune on HI-Small days 1 to N-3, validate on the last 3 days, then report once on LI-Small untouched.
+- **Cycles:** recursive CTE bounded by max 5 hops, time-ordered edges, minimum amount, and a cap on node degree. Document every bound and why.
+- **ML comparison:** gradient boosting on `fct_alert_features`, time split plus account-grouped split (no account in both train and test; this is the same leakage class Hugo caught before). Compare against rules at equal alerts per 1,000 accounts. Report honestly if ML does not win.
+
+## dbt layout
+```
+seeds/        fx_rates_approx.csv, payment_format_risk.csv
+staging/      stg_transactions, stg_accounts, stg_patterns
+intermediate/ int_txn_enriched, int_account_daily, int_account_profile, int_edges
+marts/        dim_account, fct_transactions, fct_alerts, fct_rule_performance, fct_alert_features
+rules/        rule_fan_in_out, rule_structuring, rule_pass_through, rule_cycles, rule_baseline_anomaly   <- HUGO
+```
+Every model: `unique`/`not_null` on keys, `relationships` where relevant, plus singular tests: no negative amounts, label counts in marts equal staging, every alert references a valid account, alert rows have a non-empty `reason`.
+Every alert row: `rule_id, account_id, alert_ts, score, reason` (reason is a human-readable string; explainability is the point).
+
+## Who writes what
+**Claude Code, autonomously:** repo scaffold, `pyproject`/requirements, dbt project and profiles, download and load scripts, `Patterns.txt` parser, all staging/intermediate/mart models, all dbt tests, the evaluation harness (`fct_rule_performance`, overlap table, recall by pattern type, alerts per 1,000 accounts, threshold sensitivity, precision@k), CI, the ML comparison, charts, README skeleton and all prose that is not Hugo's reasoning, `LEARNING_LOG.md` template.
+**Hugo writes (stubs provided by Claude Code):** the five `rules/` models. For each, Claude Code creates: a stub file with a header comment giving the scenario spec, inputs available, and output contract; a tiny hand-built fixture (10 to 30 rows) with expected alerts as a dbt unit test; and `make eval RULE=<name>` which runs the rule and prints precision, recall, alerts per 1,000 accounts. Hugo's rule must pass the fixture first, then be evaluated on data.
+**Review mode:** when Hugo says "review rule X", Claude Code reports edge cases, performance issues and bugs with explanations, and suggests changes in prose or small snippets. It does not hand back a full rewrite. Log what each review caught in `LEARNING_LOG.md`.
+
+## Build order
+1. Scaffold, gitignore, CI skeleton, Makefile (`make setup data build test eval`). Commit.
+2. Download and load raw to DuckDB. Schema check against the section above; fix this file if wrong. Write `docs/eda_notes.md` (date range, duplicates, self-transfers, currency mix, label rate, null rates, patterns coverage). Commit.
+3. Staging, then intermediate, tests green after each model. Commit per model.
+4. Evaluation harness against a dummy "alert everyone" and "alert nobody" rule, so the harness is proven before any real rule. Commit.
+5. Stubs, fixtures and unit tests for the five rules. Commit. **STOP and hand over to Hugo** (see handover).
+6. As Hugo finishes each rule: review on request, wire into `fct_alerts`, run evaluation, commit results.
+7. LI-Small out-of-sample run, overlap and by-pattern analysis.
+8. ML comparison.
+9. README finalised from real numbers, diagrams (lineage screenshot, architecture), tag `v1.0`.
+
+CI: GitHub Actions runs `dbt build` on a deterministic ~100k-row sample generated in the workflow from a fixed seed (stratified to keep laundering rows). The full dataset never runs in CI. Badge in README.
+
+## README skeleton
+Headline sentence with the main result, then `## Input`, `## Transformation`, `## Output`, `## Limitations`, `## Reproduce`, `## What I'd do next`.
+Limitations must include: synthetic data generated from the same patterns the rules look for; short window; static approximate FX; perfect labels unlike reality; account label is a derived choice; no case management, sanctions or KYC data; rule thresholds tuned on one synthetic dataset.
+
+## Handover protocol
+At each STOP, print: what is done, what Hugo should do next, the exact command to run, and the estimated time. End every session with a "Next steps" block that is direct and ordered. No vague suggestions.
+
+## Time budget
+Hugo has about 5 to 8 hours a week for about 8 weeks. Prefer fewer things done well. If behind, cut rule 5 (baseline anomaly) or the ML step; never cut tests, the README, or the limitations section.

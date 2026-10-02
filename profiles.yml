@@ -1,0 +1,9 @@
+# Local, free, file-based. DBT_PROFILES_DIR points here (see Makefile).
+# AML_DB overrides the database file (CI uses a sample database).
+aml_monitoring:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('AML_DB', 'data/aml.duckdb') }}"
+      threads: 4
