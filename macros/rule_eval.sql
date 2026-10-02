@@ -7,13 +7,13 @@
     labelled account population account with >=1 laundering transaction in the range
     alerted account  population account with >=1 alert row dated in the range
   splits: all; tune = days 1..tune_last_day; validate = the rest
-  (--vars '{tune_last_day: N}', default 15).
+  (--vars '{tune_last_day: N}', default 7, set in dbt_project.yml).
 #}
 {% macro rule_eval_base(alerts) %}
 splits as (
     select 'all' as split, 1 as day_from, 100000 as day_to
-    union all select 'tune', 1, {{ var('tune_last_day', 15) }}
-    union all select 'validate', {{ var('tune_last_day', 15) }} + 1, 100000
+    union all select 'tune', 1, {{ var('tune_last_day') }}
+    union all select 'validate', {{ var('tune_last_day') }} + 1, 100000
 ),
 window_start as (select min(day) as d0 from {{ ref('int_account_activity_days') }}),
 pop as (

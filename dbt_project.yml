@@ -9,6 +9,10 @@ test-paths: ["tests"]
 macro-paths: ["macros"]
 analysis-paths: ["analyses"]
 
+vars:
+  # Tune = days 1..tune_last_day, validate = the rest. See CLAUDE.md "Splits".
+  tune_last_day: 7
+
 clean-targets: ["target", "dbt_packages"]
 
 models:

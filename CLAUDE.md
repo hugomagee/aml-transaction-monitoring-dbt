@@ -26,7 +26,7 @@ Known facts (LI-Small): 6,924,049 transactions, 3,565 laundering (0.05%), 712,68
 ## Key decisions (already made, do not relitigate)
 - **Alert unit: account.** Account label = account is an endpoint of at least one `Is Laundering = 1` transaction. Also report transaction-level recall (share of laundering transactions touching at least one alerted account).
 - **FX:** seed `seeds/fx_rates_approx.csv` with documented approximate USD rates. Normalise to `amount_usd`. State in README that rates are static approximations and that this is an assumption, not data.
-- **Splits:** tune on HI-Small days 1 to N-3, validate on the last 3 days, then report once on LI-Small untouched.
+- **Splits:** tune on HI-Small days 1 to 7, validate on days 8 to 18 (`tune_last_day: 7` in `dbt_project.yml`), then report once on LI-Small untouched. The original "last 3 days" held only 60 accounts, all labelled; days 8 to 18 hold 2,652 labelled accounts (`python scripts/split_counts.py`). Labels are per split: an account is labelled in a split only through a laundering transaction inside that split's window.
 - **Cycles:** recursive CTE bounded by max 5 hops, time-ordered edges, minimum amount, and a cap on node degree. Document every bound and why.
 - **ML comparison:** gradient boosting on `fct_alert_features`, time split plus account-grouped split (no account in both train and test; this is the same leakage class Hugo caught before). Compare against rules at equal alerts per 1,000 accounts. Report honestly if ML does not win.
 
