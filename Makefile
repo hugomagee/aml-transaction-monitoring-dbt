@@ -4,7 +4,7 @@ VENV  := .venv
 PY    := $(VENV)/bin/python
 DBT   := DBT_PROFILES_DIR=. $(VENV)/bin/dbt
 
-.PHONY: setup data load build test test-rule eval ci-sample ci clean
+.PHONY: setup data load build test test-rule eval ci-sample ci ml results clean
 
 setup:
 	/opt/homebrew/bin/python3.12 -m venv $(VENV) || python3 -m venv $(VENV)
@@ -45,3 +45,11 @@ ci-sample:
 ci:
 	AML_RAW_DIR=ci/sample AML_DB=data/ci.duckdb $(PY) scripts/load_raw.py hi
 	AML_DB=data/ci.duckdb $(DBT) build --exclude tag:hugo_rule
+
+# ML vs rules at equal alert volume -> docs/ml_results.md (needs `make build`; LI optional)
+ml:
+	$(PY) scripts/ml_compare.py
+
+# Regenerate docs/rule_results.md from the evaluation marts
+results:
+	$(PY) scripts/rule_results.py
