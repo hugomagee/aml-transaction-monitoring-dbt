@@ -3,7 +3,7 @@
 [![ci](https://github.com/hugomagee/aml-transaction-monitoring-dbt/actions/workflows/ci.yml/badge.svg)](https://github.com/hugomagee/aml-transaction-monitoring-dbt/actions/workflows/ci.yml)
 
 <!-- BEGIN:headline -->
-On the synthetic IBM AMLworld data, the best hand-written rule (fan-in/out) alerts on 5.0 of every 1,000 accounts at 7.1% precision against a 0.73% base rate (about 10x lift, days 8-18 of HI-Small), but a gradient-boosted model on point-in-time account features beats every rule at equal volume (34.5% precision at 5 alerts per 1,000 on held-out accounts), so the rules are a baseline, not a detector.
+On the synthetic IBM AMLworld data, the best hand-written rule (fan-in/out) alerts on 5.0 of every 1,000 accounts at 7.1% precision against a 0.73% base rate (about 10x lift, days 8-18 of HI-Small), but a gradient-boosted model on point-in-time account features beats every rule at equal volume (35.4% precision at 5 alerts per 1,000 on held-out accounts; 24.5% after removing four features that proxy simulator behaviour), so the rules are a baseline, not a detector.
 <!-- END:headline -->
 
 > **Authorship.** The dbt models, rule SQL, tests, scripts and documentation in this repository were
@@ -227,7 +227,8 @@ Generated from `target/manifest.json` (`python scripts/update_readme.py`); the `
 over the whole window; no hub degrees from the whole window, no pattern tags, nothing derived from the
 label) is trained on the tune window and tested on the validate window with an account-grouped split (no
 account in both train and test), then applied once to LI-Small. It is compared with the rules at equal
-alerts per 1,000 accounts.
+alerts per 1,000 accounts. An ablation retrains the same model without four features that proxy how the
+simulator assigns currencies, formats and self-transfers; the exclusion list was fixed before it was run.
 
 ## Output
 
@@ -257,8 +258,9 @@ ML versus the rules at equal alert volume:
 | rule_fan_in_out | 0.012 | 6.5% (0.9%) | 5.9% (3.6%) | 5.9% (3.6%) at only 4.55/1,000 |
 | rule_cycles | 0.035 | 30.5% (3.6%) at only 0.88/1,000 | 30.5% (3.6%) at only 0.88/1,000 | 30.5% (3.6%) at only 0.88/1,000 |
 | combined_excl_baseline | 0.010 | 2.8% (0.4%) | 2.7% (1.8%) | 2.7% (3.6%) |
-| ML base | 0.230 | 70.4% (9.3%) | 34.5% (22.9%) | 24.4% (32.5%) |
-| ML base+rules | 0.183 | 75.0% (9.9%) | 28.0% (18.6%) | 18.2% (24.1%) |
+| ML base | 0.235 | 73.1% (9.7%) | 35.4% (23.5%) | 24.3% (32.2%) |
+| ML base, no artifact features | 0.131 | 52.8% (7.0%) | 24.5% (16.3%) | 16.1% (21.3%) |
+| ML base+rules | 0.195 | 77.8% (10.3%) | 29.0% (19.2%) | 18.6% (24.8%) |
 
 **LI-Small validate window, HI-trained model applied once** (base rate 0.37%, 492,785 accounts)
 
@@ -267,17 +269,22 @@ ML versus the rules at equal alert volume:
 | rule_fan_in_out | 0.019 | 10.4% (2.8%) | 6.6% (8.6%) | 6.6% (8.6%) at only 4.83/1,000 |
 | rule_cycles | 0.016 | 11.6% (1.8%) at only 0.58/1,000 | 11.6% (1.8%) at only 0.58/1,000 | 11.6% (1.8%) at only 0.58/1,000 |
 | combined_excl_baseline | 0.007 | 5.7% (1.5%) | 2.7% (3.6%) | 2.1% (5.6%) |
-| ML base | 0.075 | 24.9% (6.7%) | 10.4% (14.1%) | 7.4% (20.1%) |
-| ML base+rules | 0.052 | 20.3% (5.5%) | 6.8% (9.2%) | 4.9% (13.2%) |
+| ML base | 0.074 | 24.9% (6.7%) | 10.5% (14.1%) | 7.6% (20.4%) |
+| ML base, no artifact features | 0.048 | 16.2% (4.4%) | 6.3% (8.6%) | 5.0% (13.5%) |
+| ML base+rules | 0.055 | 21.1% (5.7%) | 7.5% (10.1%) | 4.8% (13.1%) |
 
-Equal-volume comparison, ties resolved pro rata; a rule with fewer alerts than the budget uses all of them. Details, caveats and feature importances: [docs/ml_results.md](docs/ml_results.md).
+`ML base, no artifact features` drops `f_n_currencies`, `f_n_self`, `f_frac_risky_format` and `f_frac_cross_currency`, an exclusion list declared before the ablation was run (same model and split; one ablation configuration, see the reproducibility note in docs/ml_results.md). Equal-volume comparison, ties resolved pro rata; a rule with fewer alerts than the budget uses all of them. Details, caveats and feature importances: [docs/ml_results.md](docs/ml_results.md).
 <!-- END:ml -->
 
 Reading these honestly: fan-in/out and cycles are the useful rules (fan-in/out about 8-10x the base rate at
 5-10 alerts per 1,000; cycles about 18-34x but at under 1 alert per 1,000, so it finds very little);
-structuring and pass-through are only about 2-4x; baseline anomaly does not transfer across days. The ML model is well ahead of every rule at equal volume, but its most important features
-look like properties of the synthetic generator (see Limitations), so this is not evidence that it would
-find real laundering.
+structuring and pass-through are only about 2-4x; baseline anomaly does not transfer across days. The full-feature ML model is far ahead of every rule at equal volume. Removing four features that were
+declared in advance as simulator-artifact proxies (currency count, self-transfers, risky-format share,
+cross-currency share; together about 43% of its importance) cuts its precision at equal volume by roughly a
+third and its PR-AUC by 44% on HI-Small, but it still beats every rule that can fill the budget there. On
+LI-Small the artifact-free model is ahead of the rules at 1 and 10 alerts per 1,000 and level with fan-in/out
+at 5 per 1,000. What remains (USD amounts, volume, degree, timing) could still encode simulator behaviour, so
+this is a statement about this dataset, not evidence that ML would find real laundering.
 
 Other outputs: `fct_alerts` (rule_id, account_id, alert_ts, score, reason, one row per account per day per
 rule), `fct_rule_*` evaluation marts, `fct_alert_features`, [docs/rule_results.md](docs/rule_results.md),
@@ -308,9 +315,12 @@ rule), `fct_rule_*` evaluation marts, `fct_alert_features`, [docs/rule_results.m
   (a cold-start problem). It is excluded from the combined headline set.
 - **Structuring uses a loose band.** The tuning criterion chose a 30% band (7,000-10,000 USD); that is
   "below the threshold", not "just below" it.
-- **The ML lead is probably a generator artifact.** The most important features (number of currencies,
-  self-transfers, share of risky formats) look like properties of how the data was synthesised. Treat the
-  ML-over-rules result as a statement about this dataset.
+- **The ML lead is partly a generator artifact, and may be more.** Four features that proxy how the
+  simulator assigns currencies, formats and self-transfers carried about 43% of the full model's importance;
+  removing them (an exclusion list declared in advance) cuts precision at equal volume by roughly a third
+  but leaves the model ahead of the rules on HI-Small and mostly level-to-ahead on LI-Small. The features
+  that remain (USD amounts, volume, degree, timing) could still encode simulator behaviour, so the ML-over-rules
+  result is a statement about this dataset only.
 - **The account label is a derived choice** (endpoint of any laundering transaction), and labels here are
   perfect, unlike reality.
 - **No case management, sanctions or KYC data**; no analyst feedback; no rule retraining over time.

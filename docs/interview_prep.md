@@ -13,7 +13,8 @@ here is how it works and where it falls short." This document exists so that sec
 **The 30-second version.** I built a dbt + DuckDB pipeline over IBM's synthetic AMLworld transaction data:
 raw load, staging, intermediate and mart layers, five SQL detection rules, and an evaluation harness that
 scores them per account with time-split labels. The best rule (fan-in/out) lifts precision about 10x over the
-base rate; a gradient-boosted model beats every rule at equal alert volume; and because the data is
+base rate; a gradient-boosted model beats every rule at equal alert volume (by less once four simulator-artifact
+features are removed); and because the data is
 synthetic and generated from the patterns the rules look for, none of this is evidence about real
 detection.
 
@@ -52,9 +53,12 @@ detection.
 | pass_through | 2.9% / 1.6% / 4.1 (about 4x) | 1.8% / 2.7% / 11.1 |
 | baseline_anomaly | 2.5% / 28.7% / 84.4 (tune was 8.2 per 1,000: does not transfer) | 2.2% / 19.5% / 65.4 |
 
-**ML** (HI validate, account-disjoint test accounts, PR-AUC): ML base 0.230, ML base+rules 0.183, best
-rule 0.035 (cycles), fan-in/out 0.012. At 5 alerts per 1,000: ML base 34.5% precision (22.9% recall) versus
-fan-in/out 5.9%. On LI-Small (model applied once) ML base is 10.4% at 5 per 1,000 versus 6.6%.
+**ML** (HI validate, account-disjoint test accounts, PR-AUC): ML base 0.235, ML base+rules 0.195, ML with the
+four artifact features removed 0.131, best rule 0.035 (cycles), fan-in/out 0.012. At 5 alerts per 1,000: ML base
+35.4% precision (23.5% recall), artifact-free 24.5% (16.3%), fan-in/out 5.9%. On LI-Small (models applied once)
+at 5 per 1,000: ML base 10.5%, artifact-free 6.3%, fan-in/out 6.6%. The four removed features
+(`f_n_currencies`, `f_n_self`, `f_frac_risky_format`, `f_frac_cross_currency`) carried about 43% of the full
+model's permutation importance.
 
 ---
 
@@ -212,6 +216,8 @@ Features: `fct_alert_features` base columns; trained on tune-window rows of 70% 
 account id), tested on validate-window rows of the other 30%, so no account is on both sides and the test
 window is later. One fixed gradient-boosting configuration, no tuning. Rules are scored on the same accounts;
 ties at the alert cut are resolved pro rata (expected value under random tie-breaking).
+The ablated model drops four features declared in advance; I also found and fixed row-order
+non-determinism (scikit-learn subsamples rows when binning), now sorted by split and account id.
 Why scikit-learn rather than LightGBM: LightGBM needs a system `libomp` that was not installed, and I did not
 install system software for this.
 
@@ -312,10 +318,14 @@ structure, and the README says so.
 
 ## 5. Follow-ups worth rehearsing
 
-- **"Is the ML result real?"** On this data yes, but the top features are the number of currencies, self-transfers and the
-  share of risky formats. Those look like how the generator makes laundering accounts, not like real laundering,
-  so it is a statement about this dataset. The rules-as-features model was not better than base features (the
-  rules were tuned on the same labels the model trains on).
+- **"Is the ML result real?"** On this data yes, but part of it is the simulator. I declared four features
+  as proxies for how the simulator assigns currencies, formats and self-transfers *before* running the
+  ablation; they carried about 43% of the full model's importance. Without them the model keeps about two thirds
+  of its precision at equal volume on HI-Small (24.5% vs 35.4% at 5 per 1,000) and still beats the rules, but on
+  LI-Small it is only level with fan-in/out at 5 per 1,000 (6.3% vs 6.6%). The remaining features (USD amounts,
+  volume, degree, timing) could still encode simulator behaviour, so I describe it as a result about this
+  dataset. The rules-as-features model was not better than base features (the rules were tuned on the same
+  labels the model trains on).
 - **"Where is the look-ahead?"** The cycles hub cap uses whole-window degrees (hub status, not labels). ML features are
   strictly per-window; two tests enforce no label-derived columns and point-in-time values.
 - **"What would you do with real data?"** Re-run, expect everything to drop, replace the whole-window degree with an
