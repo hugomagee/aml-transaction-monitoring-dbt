@@ -77,8 +77,6 @@ unit_tests:
   - name: test_rule_pass_through_fixture
     model: rule_pass_through
     description: "pt_M forwards 96% in 2h and pt_R forwards 100% over two sends (alert at the completing send). pt_N forwards 40%, pt_O forwards after 30h, pt_P receives under the minimum, pt_Q sends it straight back to the sender: none alert."
-    config:
-      tags: [hugo_rule]
     overrides:
       vars:
         pass_min_amount_usd: 1000
