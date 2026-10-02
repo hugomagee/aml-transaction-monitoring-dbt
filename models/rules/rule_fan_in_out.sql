@@ -26,8 +26,8 @@
 -- IMPLEMENTATION: a trailing RANGE window per account over its time-ordered edges.
 --   n_cp   = distinct counterparties in (ts - window, ts]   (peers with the same ts included)
 --   usd    = total amount in the same window
--- An account alerts the first time n_cp >= fan_min_counterparties. Score is the peak
--- n_cp over the account's history; the reason quotes that peak window's numbers.
+-- An account alerts when n_cp >= fan_min_counterparties, once per calendar day it holds.
+-- Score is that day's peak n_cp; the reason quotes that peak window's numbers.
 -- Accounts whose lifetime distinct-counterparty count is below the threshold can never
 -- alert, so they are filtered out first; that keeps the window scan cheap.
 {% set k = var('fan_min_counterparties', 6) %}
@@ -63,13 +63,15 @@ flagged as (
     select * from windows where n_cp >= {{ k }}
 ),
 agg as (
+    -- one alert per account, side and calendar day on which the condition holds, so a
+    -- persistent hub keeps alerting and every time split sees it
     select
         side, account_id,
         min(txn_ts) as first_ts,
         max(n_cp)   as peak_n,
         arg_max(usd, n_cp) as peak_usd
     from flagged
-    group by side, account_id
+    group by side, account_id, cast(txn_ts as date)
 )
 select
     cast('rule_fan_in_out' as varchar) as rule_id,
