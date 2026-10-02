@@ -6,8 +6,13 @@
 --   [threshold*(1-band), threshold) within any structuring_window_hours window.
 --   Self-transfers are ignored. alert_ts = timestamp of the payment that completes
 --   the count. Score = number of in-band payments in the window.
--- PARAMS: var('structuring_threshold_usd', 10000)  var('structuring_band_pct', 0.10)
---         var('structuring_min_txns', 2)           var('structuring_window_hours', 72)
+-- PARAMS: var('structuring_threshold_usd', 10000)  var('structuring_band_pct', 0.30)
+--         var('structuring_min_txns', 4)           var('structuring_window_hours', 72)
+--   structuring_min_txns must be >= 3 (enforced below): a 2-payment pattern is not structuring.
+--   Defaults tuned on the TUNE split only (days 1-7): grid band {5,10,20,30}% x min_txns {3,4,5}
+--   x window {24,72,168}h; pick = highest account recall with <= 10 alerts per 1,000 accounts.
+--   A 30% band is 7,000-10,000 USD: that is "below the threshold", not "just below" it.
+--   The fixture pins its own values (band 10%, min_txns 3) and is unaffected.
 -- NOTE: amount_usd uses static approximate FX (seeds/fx_rates_approx.csv); the band is
 --   only as good as that approximation. Say so in the README.
 -- INPUTS: ref('int_txn_enriched')  (txn_id, txn_ts, from_account_id, to_account_id,
@@ -29,9 +34,10 @@
 -- structuring_min_txns is the alert, once per account per calendar day it holds; score is
 -- that day's peak count; the reason quotes the peak window.
 {% set thr = var('structuring_threshold_usd', 10000) %}
-{% set band = var('structuring_band_pct', 0.10) %}
-{% set n = var('structuring_min_txns', 2) %}
+{% set band = var('structuring_band_pct', 0.30) %}
+{% set n = var('structuring_min_txns', 4) %}
 {% set w = var('structuring_window_hours', 72) %}
+{% if n < 3 %}{{ exceptions.raise_compiler_error('structuring_min_txns must be >= 3: a 2-payment pattern is not structuring') }}{% endif %}
 
 with in_band as (
     select txn_id, txn_ts, from_account_id, amount_usd
