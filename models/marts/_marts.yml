@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: dim_account
+    columns:
+      - name: account_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships: {arguments: {to: ref('stg_accounts'), field: account_id}}
+      - name: is_laundering_account
+        data_tests: [not_null]
+  - name: fct_transactions
+    columns:
+      - name: txn_id
+        data_tests: [unique, not_null]
+      - name: from_account_id
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_account'), field: account_id}}
+      - name: to_account_id
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_account'), field: account_id}}
+      - name: amount_usd
+        data_tests: [positive]
+  - name: fct_alerts
+    description: "Union of wired rules. Contract: rule_id, account_id, alert_ts, score, reason."
+    columns:
+      - name: rule_id
+        data_tests: [not_null]
+      - name: account_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_account'), field: account_id}}
+      - name: alert_ts
+        data_tests: [not_null]
+      - name: score
+        data_tests: [not_null]
+      - name: reason
+        data_tests: [not_null]
+  - name: fct_rule_performance
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {columns: [rule_id, split]}
+    columns:
+      - name: split
+        data_tests:
+          - accepted_values: {arguments: {values: [all, tune, validate]}}
+  - name: fct_rule_pattern_recall
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {columns: [rule_id, split, pattern_type]}
+  - name: fct_rule_threshold_sensitivity
+  - name: fct_rule_overlap
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {columns: [rule_a, rule_b]}
