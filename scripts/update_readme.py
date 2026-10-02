@@ -45,17 +45,38 @@ def cell(d, rule, split):
     return f"{prec:.1%} | {rec:.1%} | {per:.1f} | {prec / base:.1f}x" if prec is not None else f"n/a | {rec:.1%} | {per:.1f} | n/a"
 
 
+TOLERANCE = 0.05  # within 5% (relative) counts as level, as in scripts/ml_compare.py
+
+
+def _rel(p_ml: float, p_rule: float) -> str:
+    return "ahead" if p_ml > p_rule * (1 + TOLERANCE) else ("level" if p_ml > p_rule * (1 - TOLERANCE) else "behind")
+
+
+def headline_text(fan_prec: float, fan_per: float, base: float, mlj: dict) -> str:
+    """Every number and every comparative word is computed from the results files; nothing is hard-coded.
+    The HI and LI comparisons use the artifact-free model against fan-in/out at 5 alerts per 1,000."""
+    def prec(key, method):
+        rows = {x["method"]: x for x in mlj[key]["rows"]}
+        return rows[method]["b5"][0]
+
+    full, abl = prec("HI_validate", "ML base"), prec("HI_validate", NO_ARTIFACT)
+    hi_phrase = {"ahead": "does better", "level": "does about as well", "behind": "does worse"}[
+        _rel(abl, prec("HI_validate", "rule_fan_in_out"))]
+    text = (f"On the synthetic IBM AMLworld data, the best hand-written rule (fan-in/out) alerts on {fan_per:.1f} of every "
+            f"1,000 accounts at {fan_prec:.1%} precision against a {base:.2%} base rate (about {fan_prec / base:.0f}x lift, "
+            f"days 8-18 of HI-Small). A gradient-boosted model on point-in-time account features {hi_phrase} at equal volume "
+            f"on HI-Small ({abl:.1%} precision at 5 alerts per 1,000 on held-out accounts after removing four features that "
+            f"proxy simulator behaviour; {full:.1%} with them)")
+    if "LI_validate" in mlj:
+        li_phrase = {"ahead": "ahead of", "level": "only level with", "behind": "behind"}[
+            _rel(prec("LI_validate", NO_ARTIFACT), prec("LI_validate", "rule_fan_in_out"))]
+        text += f", but on LI-Small it is {li_phrase} fan-in/out at that volume"
+    return text + ", so the rules are a baseline, not a detector."
+
+
 def headline() -> str:
     r = hi[("rule_fan_in_out", "validate")]
-    prec, per, base = r[3], r[5], r[6]
-    m = {x["method"]: x for x in ml["HI_validate"]["rows"]}
-    mlp = m["ML base"]["b5"][0]
-    abl = m[NO_ARTIFACT]["b5"][0]
-    return (f"On the synthetic IBM AMLworld data, the best hand-written rule (fan-in/out) alerts on {per:.1f} of every "
-            f"1,000 accounts at {prec:.1%} precision against a {base:.2%} base rate (about {prec / base:.0f}x lift, days 8-18 of "
-            f"HI-Small), but a gradient-boosted model on point-in-time account features beats every rule at equal volume "
-            f"({mlp:.1%} precision at 5 alerts per 1,000 on held-out accounts; {abl:.1%} after removing four features that proxy "
-            f"simulator behaviour), so the rules are a baseline, not a detector.")
+    return headline_text(r[3], r[5], r[6], ml)
 
 
 def results_table() -> str:
