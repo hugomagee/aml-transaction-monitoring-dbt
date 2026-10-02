@@ -1,0 +1,8 @@
+payment_format,risk_weight,rationale
+Cash,3,anonymous and hard to trace; generic AML prior
+Bitcoin,3,pseudonymous transfer; generic AML prior
+Wire,2,fast cross-border movement; generic AML prior
+Cheque,2,bearer-style instrument; generic AML prior
+Credit Card,1,tied to a card account; generic AML prior
+ACH,1,domestic batch rail; generic AML prior
+Reinvestment,0,movement within the same account holder; generic AML prior

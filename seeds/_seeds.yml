@@ -1,0 +1,23 @@
+version: 2
+
+seeds:
+  - name: fx_rates_approx
+    description: >
+      Static, approximate USD rates (early Sep 2022 levels, rounded). An
+      assumption, not data: the dataset ships no FX table.
+    columns:
+      - name: currency
+        data_tests: [unique, not_null]
+      - name: usd_per_unit
+        data_tests:
+          - not_null
+          - positive
+  - name: payment_format_risk
+    description: >
+      Prior risk weight per payment format. Analyst judgement from generic AML
+      practice, fixed before looking at labels; not tuned.
+    columns:
+      - name: payment_format
+        data_tests: [unique, not_null]
+      - name: risk_weight
+        data_tests: [not_null]

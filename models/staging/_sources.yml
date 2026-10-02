@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw IBM AMLworld tables loaded by scripts/load_raw.py (all VARCHAR).
+    tables:
+      - name: hi_transactions
+      - name: hi_accounts
+      - name: hi_patterns
+      - name: li_transactions
+      - name: li_accounts
+      - name: li_patterns
