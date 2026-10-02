@@ -141,3 +141,120 @@ them on precision/recall at their own volume, not with a single rule's budget.
 | rule_fan_in_out | rule_pass_through | 5324 | 5618 | 138 | 20 | 0.0128 |
 | rule_cycles | rule_pass_through | 476 | 5618 | 5 | 5 | 0.0008 |
 | rule_cycles | rule_structuring | 476 | 9400 | 5 | 2 | 0.0005 |
+
+# LI-Small: frozen defaults, run once, never tuned on
+
+Same code, same defaults as HI-Small (`AML_DB=data/li.duckdb`, `--vars '{dataset: li}'`); each rule
+was run exactly once and no parameter was changed afterwards. LI-Small has a lower laundering base
+rate and only 29% of its laundering rows appear in Patterns.txt. The `all` split is the clean
+out-of-sample number; `tune`/`validate` use the same day cut (1-7 / 8-17) only for comparability
+with HI-Small. No rule failed (memory or spill cap) on LI-Small.
+
+## Base rates, HI-Small next to LI-Small
+
+| dataset | split | accounts | labelled | base_rate |
+|---|---|---|---|---|
+| HI-Small | all | 515088 | 6357 | 0.0123 |
+| HI-Small | tune | 513512 | 4064 | 0.0079 |
+| HI-Small | validate | 361568 | 2652 | 0.0073 |
+| LI-Small | all | 705907 | 5304 | 0.0075 |
+| LI-Small | tune | 703809 | 3646 | 0.0052 |
+| LI-Small | validate | 492785 | 1824 | 0.0037 |
+
+## Performance per rule on LI-Small
+
+| rule_id | split | accounts | labelled | alerted | tp | precision | recall | per_1000 | txn_recall | p_at_100 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| rule_baseline_anomaly [*] | all | 705907 | 5304 | 46187 | 1034 | 0.0224 | 0.1949 | 65.43 | 0.3686 | 0.03 |
+| rule_baseline_anomaly [*] | tune | 703809 | 3646 | 5527 | 347 | 0.0628 | 0.0952 | 7.85 | 0.1931 | 0.11 |
+| rule_baseline_anomaly [*] | validate | 492785 | 1824 | 41258 | 434 | 0.0105 | 0.2379 | 83.72 | 0.4252 | 0.00 |
+| rule_cycles | all | 705907 | 5304 | 492 | 65 | 0.1321 | 0.0123 | 0.70 | 0.0163 | 0.30 |
+| rule_cycles | tune | 703809 | 3646 | 224 | 24 | 0.1071 | 0.0066 | 0.32 | 0.0068 | 0.16 |
+| rule_cycles | validate | 492785 | 1824 | 285 | 33 | 0.1158 | 0.0181 | 0.58 | 0.0224 | 0.26 |
+| rule_fan_in_out | all | 705907 | 5304 | 7173 | 498 | 0.0694 | 0.0939 | 10.16 | 0.4006 | 0.18 |
+| rule_fan_in_out | tune | 703809 | 3646 | 5292 | 335 | 0.0633 | 0.0919 | 7.52 | 0.4045 | 0.19 |
+| rule_fan_in_out | validate | 492785 | 1824 | 2379 | 157 | 0.0660 | 0.0861 | 4.83 | 0.3613 | 0.20 |
+| rule_pass_through | all | 705907 | 5304 | 7832 | 142 | 0.0181 | 0.0268 | 11.09 | 0.2449 | 0.04 |
+| rule_pass_through | tune | 703809 | 3646 | 6401 | 80 | 0.0125 | 0.0219 | 9.09 | 0.2461 | 0.03 |
+| rule_pass_through | validate | 492785 | 1824 | 2051 | 25 | 0.0122 | 0.0137 | 4.16 | 0.1769 | 0.00 |
+| rule_structuring | all | 705907 | 5304 | 12839 | 229 | 0.0178 | 0.0432 | 18.19 | 0.3240 | 0.18 |
+| rule_structuring | tune | 703809 | 3646 | 6669 | 99 | 0.0148 | 0.0272 | 9.48 | 0.3100 | 0.16 |
+| rule_structuring | validate | 492785 | 1824 | 12247 | 97 | 0.0079 | 0.0532 | 24.85 | 0.2924 | 0.16 |
+
+[*] does not transfer across days (see above); cold-start baseline.
+
+## Combined alert sets on LI-Small
+
+| alert_set | split | accounts | labelled | alerted | tp | precision | recall | per_1000 | txn_recall |
+|---|---|---|---|---|---|---|---|---|---|
+| combined_incl_baseline | all | 705907 | 5304 | 68465 | 1670 | 0.0244 | 0.3149 | 96.99 | 0.7001 |
+| combined_incl_baseline | tune | 703809 | 3646 | 22281 | 773 | 0.0347 | 0.2120 | 31.66 | 0.6044 |
+| combined_incl_baseline | validate | 492785 | 1824 | 55337 | 612 | 0.0111 | 0.3355 | 112.29 | 0.6993 |
+| combined_excl_baseline | all | 705907 | 5304 | 25995 | 820 | 0.0315 | 0.1546 | 36.82 | 0.5018 |
+| combined_excl_baseline | tune | 703809 | 3646 | 17421 | 479 | 0.0275 | 0.1314 | 24.75 | 0.4790 |
+| combined_excl_baseline | validate | 492785 | 1824 | 16212 | 267 | 0.0165 | 0.1464 | 32.90 | 0.4585 |
+
+## Transaction-level recall by pattern type, LI-Small (whole window)
+
+| pattern_type | rule_id | recall |
+|---|---|---|
+| BIPARTITE | rule_baseline_anomaly | 0.419 |
+| BIPARTITE | rule_cycles | 0.0 |
+| BIPARTITE | rule_fan_in_out | 0.132 |
+| BIPARTITE | rule_pass_through | 0.147 |
+| BIPARTITE | rule_structuring | 0.217 |
+| CYCLE | rule_baseline_anomaly | 0.554 |
+| CYCLE | rule_cycles | 0.169 |
+| CYCLE | rule_fan_in_out | 0.169 |
+| CYCLE | rule_pass_through | 0.241 |
+| CYCLE | rule_structuring | 0.145 |
+| FAN-IN | rule_baseline_anomaly | 0.384 |
+| FAN-IN | rule_cycles | 0.0 |
+| FAN-IN | rule_fan_in_out | 0.041 |
+| FAN-IN | rule_pass_through | 0.096 |
+| FAN-IN | rule_structuring | 0.123 |
+| FAN-OUT | rule_baseline_anomaly | 0.644 |
+| FAN-OUT | rule_cycles | 0.0 |
+| FAN-OUT | rule_fan_in_out | 0.128 |
+| FAN-OUT | rule_pass_through | 0.047 |
+| FAN-OUT | rule_structuring | 0.268 |
+| GATHER-SCATTER | rule_baseline_anomaly | 0.913 |
+| GATHER-SCATTER | rule_cycles | 0.0 |
+| GATHER-SCATTER | rule_fan_in_out | 0.16 |
+| GATHER-SCATTER | rule_pass_through | 0.08 |
+| GATHER-SCATTER | rule_structuring | 0.407 |
+| RANDOM | rule_baseline_anomaly | 0.429 |
+| RANDOM | rule_cycles | 0.13 |
+| RANDOM | rule_fan_in_out | 0.091 |
+| RANDOM | rule_pass_through | 0.13 |
+| RANDOM | rule_structuring | 0.247 |
+| SCATTER-GATHER | rule_baseline_anomaly | 0.604 |
+| SCATTER-GATHER | rule_cycles | 0.0 |
+| SCATTER-GATHER | rule_fan_in_out | 0.434 |
+| SCATTER-GATHER | rule_pass_through | 0.225 |
+| SCATTER-GATHER | rule_structuring | 0.269 |
+| STACK | rule_baseline_anomaly | 0.5 |
+| STACK | rule_cycles | 0.044 |
+| STACK | rule_fan_in_out | 0.089 |
+| STACK | rule_pass_through | 0.144 |
+| STACK | rule_structuring | 0.161 |
+| UNTAGGED | rule_baseline_anomaly | 0.283 |
+| UNTAGGED | rule_cycles | 0.01 |
+| UNTAGGED | rule_fan_in_out | 0.491 |
+| UNTAGGED | rule_pass_through | 0.288 |
+| UNTAGGED | rule_structuring | 0.357 |
+
+## Overlap between rules, LI-Small (whole window)
+
+| rule_a | rule_b | n_alerted_a | n_alerted_b | n_both | n_both_labelled | jaccard |
+|---|---|---|---|---|---|---|
+| rule_baseline_anomaly | rule_fan_in_out | 46187 | 7173 | 1507 | 118 | 0.0291 |
+| rule_pass_through | rule_structuring | 7832 | 12839 | 1461 | 36 | 0.0761 |
+| rule_baseline_anomaly | rule_structuring | 46187 | 12839 | 1245 | 46 | 0.0215 |
+| rule_baseline_anomaly | rule_pass_through | 46187 | 7832 | 1130 | 31 | 0.0214 |
+| rule_fan_in_out | rule_structuring | 7173 | 12839 | 517 | 39 | 0.0265 |
+| rule_cycles | rule_fan_in_out | 492 | 7173 | 222 | 23 | 0.0298 |
+| rule_fan_in_out | rule_pass_through | 7173 | 7832 | 209 | 24 | 0.0141 |
+| rule_baseline_anomaly | rule_cycles | 46187 | 492 | 193 | 22 | 0.0042 |
+| rule_cycles | rule_structuring | 492 | 12839 | 11 | 6 | 0.0008 |
+| rule_cycles | rule_pass_through | 492 | 7832 | 7 | 2 | 0.0008 |
