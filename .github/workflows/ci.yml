@@ -18,4 +18,5 @@ jobs:
       # Skeleton: parses the project only. The deterministic ~100k-row sample
       # build (fixed seed, stratified to keep laundering rows) is added once
       # models exist. The full dataset never runs in CI.
+      # Rule fixtures run once rules are implemented (drop the exclude then).
       - run: DBT_PROFILES_DIR=. dbt parse
