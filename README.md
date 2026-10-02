@@ -4,6 +4,12 @@
 
 > Headline result: filled in once real numbers exist (build step 9).
 
+## Authorship
+
+The five detection rules in `models/rules/` were written by Claude Code at Hugo's request ("autopilot
+rules"), not by Hugo, and each file is marked `-- AUTHORED BY CLAUDE CODE`. Their defaults were tuned
+on the tune split; results are in `docs/rule_results.md`.
+
 ## Input
 
 _To be written._
