@@ -106,8 +106,6 @@ unit_tests:
   - name: test_rule_cycles_fixture
     model: rule_cycles
     description: "cy_A,cy_B,cy_C form a time-ordered 3-cycle closing at the 3rd edge. Not alerted: unordered cy_D/E/F, 6-hop ring cy_G..L, sub-minimum cy_M/N/O, hub cy_P (out_degree 100 > cap 50), cy_S/T/U spanning 80h > 72h."
-    config:
-      tags: [hugo_rule]
     overrides:
       vars:
         cycle_max_hops: 5
