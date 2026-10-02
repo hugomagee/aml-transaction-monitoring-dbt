@@ -1,0 +1,15 @@
+{
+  "seed": "aml-ci-sample-v1",
+  "target_rows": 100000,
+  "quota_touching_labelled": 40000,
+  "quota_other": 54823,
+  "transactions": 100000,
+  "laundering_transactions": 5177,
+  "accounts": 102174,
+  "pattern_rows_all_present": true,
+  "sha256": {
+    "HI-Small_Trans.csv.gz": "4c8e3227d9430c61119281c3f2c79667045f809b0bdfc2fba3b3473a24e63a4c",
+    "HI-Small_accounts.csv.gz": "0bd1372375910e30c3defb85dcb342e4bdd2af06ec6149bba77ba7212b5fae04",
+    "HI-Small_Patterns.txt.gz": "7dc2c2f16f2e9f3cb5b9c8257821a08a66331b2bc657a49baf1767c1a95b6148"
+  }
+}
