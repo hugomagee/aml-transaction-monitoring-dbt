@@ -22,17 +22,23 @@ def md(sql: str, fmt: dict[str, str]) -> str:
                      + ["| " + " | ".join(f(c, v) for c, v in zip(cols, r)) + " |" for r in rows])
 
 
-perf = md("""select rule_id, split, n_population as accounts, n_labelled_accounts as labelled,
+perf = md("""select case when rule_id = 'rule_baseline_anomaly' then 'rule_baseline_anomaly [*]' else rule_id end as rule_id, split, n_population as accounts, n_labelled_accounts as labelled,
     n_alerted_accounts as alerted, tp_accounts as tp, precision, account_recall as recall,
     alerts_per_1000_accounts as per_1000, txn_recall, precision_at_100 as p_at_100
     from marts.fct_rule_performance
-    where rule_id not like 'rule_dummy%'
+    where rule_id like 'rule_%' and rule_id not like 'rule_dummy%'
     order by rule_id, case split when 'all' then 0 when 'tune' then 1 else 2 end""",
           {"precision": ".4f", "recall": ".4f", "per_1000": ".2f", "txn_recall": ".4f", "p_at_100": ".2f"})
 base = md("""select split, n_population as accounts, n_labelled_accounts as labelled,
     round(n_labelled_accounts::double / n_population, 4) as base_rate
     from marts.fct_rule_performance where rule_id = 'rule_dummy_all'
     order by case split when 'all' then 0 when 'tune' then 1 else 2 end""", {})
+comb = md("""select rule_id as alert_set, split, n_population as accounts, n_labelled_accounts as labelled,
+    n_alerted_accounts as alerted, tp_accounts as tp, precision, account_recall as recall,
+    alerts_per_1000_accounts as per_1000, txn_recall
+    from marts.fct_rule_performance where rule_id like 'combined%'
+    order by rule_id desc, case split when 'all' then 0 when 'tune' then 1 else 2 end""",
+          {"precision": ".4f", "recall": ".4f", "per_1000": ".2f", "txn_recall": ".4f"})
 pat = md("""select pattern_type, rule_id, round(txn_recall, 3) as recall
     from marts.fct_rule_pattern_recall where split = 'all' and rule_id not like 'rule_dummy%'
     order by pattern_type, rule_id""", {})
@@ -58,6 +64,20 @@ holdout; the LI-Small run (never tuned on) is the clean out-of-sample check.
 ## Performance per rule
 
 {perf}
+
+[*] **rule_baseline_anomaly does not transfer across days: 8.2 alerts/1,000 on tune vs 84 on validate;
+cold-start baseline.** It needs earlier active days, and accounts accumulate history over time, so
+the alert rate tuned on days 1-7 does not hold later. It is kept in every per-rule table but left
+out of the headline combined set below.
+
+## Combined alert sets (headline excludes rule_baseline_anomaly)
+
+An account-day is alerted if any rule in the set fired. `combined_excl_baseline` = fan_in_out,
+structuring, pass_through, cycles (the headline set). `combined_incl_baseline` adds
+rule_baseline_anomaly. Alert volume of the combined sets is far above any single rule's, so compare
+them on precision/recall at their own volume, not with a single rule's budget.
+
+{comb}
 
 ## Transaction-level recall by pattern type (whole window)
 

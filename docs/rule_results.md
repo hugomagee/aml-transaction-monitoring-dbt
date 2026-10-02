@@ -22,9 +22,9 @@ holdout; the LI-Small run (never tuned on) is the clean out-of-sample check.
 
 | rule_id | split | accounts | labelled | alerted | tp | precision | recall | per_1000 | txn_recall | p_at_100 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| rule_baseline_anomaly | all | 515088 | 6357 | 34203 | 1477 | 0.0432 | 0.2323 | 66.40 | 0.4717 | 0.05 |
-| rule_baseline_anomaly | tune | 513512 | 4064 | 4215 | 523 | 0.1241 | 0.1287 | 8.21 | 0.2848 | 0.11 |
-| rule_baseline_anomaly | validate | 361568 | 2652 | 30516 | 760 | 0.0249 | 0.2866 | 84.40 | 0.5577 | 0.01 |
+| rule_baseline_anomaly [*] | all | 515088 | 6357 | 34203 | 1477 | 0.0432 | 0.2323 | 66.40 | 0.4717 | 0.05 |
+| rule_baseline_anomaly [*] | tune | 513512 | 4064 | 4215 | 523 | 0.1241 | 0.1287 | 8.21 | 0.2848 | 0.11 |
+| rule_baseline_anomaly [*] | validate | 361568 | 2652 | 30516 | 760 | 0.0249 | 0.2866 | 84.40 | 0.5577 | 0.01 |
 | rule_cycles | all | 515088 | 6357 | 476 | 113 | 0.2374 | 0.0178 | 0.92 | 0.0639 | 0.73 |
 | rule_cycles | tune | 513512 | 4064 | 198 | 31 | 0.1566 | 0.0076 | 0.39 | 0.0416 | 0.29 |
 | rule_cycles | validate | 361568 | 2652 | 304 | 76 | 0.2500 | 0.0287 | 0.84 | 0.0716 | 0.52 |
@@ -34,71 +34,110 @@ holdout; the LI-Small run (never tuned on) is the clean out-of-sample check.
 | rule_pass_through | all | 515088 | 6357 | 5618 | 166 | 0.0295 | 0.0261 | 10.91 | 0.1468 | 0.05 |
 | rule_pass_through | tune | 513512 | 4064 | 4538 | 81 | 0.0178 | 0.0199 | 8.84 | 0.1358 | 0.02 |
 | rule_pass_through | validate | 361568 | 2652 | 1473 | 42 | 0.0285 | 0.0158 | 4.07 | 0.0888 | 0.03 |
-| rule_structuring | all | 515088 | 6357 | 3619 | 108 | 0.0298 | 0.0170 | 7.03 | 0.1856 | 0.15 |
-| rule_structuring | tune | 513512 | 4064 | 3612 | 76 | 0.0210 | 0.0187 | 7.03 | 0.2101 | 0.15 |
-| rule_structuring | validate | 361568 | 2652 | 3433 | 52 | 0.0151 | 0.0196 | 9.49 | 0.1349 | 0.14 |
+| rule_structuring | all | 515088 | 6357 | 9400 | 236 | 0.0251 | 0.0371 | 18.25 | 0.2142 | 0.17 |
+| rule_structuring | tune | 513512 | 4064 | 5016 | 96 | 0.0191 | 0.0236 | 9.77 | 0.2137 | 0.16 |
+| rule_structuring | validate | 361568 | 2652 | 8952 | 117 | 0.0131 | 0.0441 | 24.76 | 0.1744 | 0.16 |
+
+[*] **rule_baseline_anomaly does not transfer across days: 8.2 alerts/1,000 on tune vs 84 on validate;
+cold-start baseline.** It needs earlier active days, and accounts accumulate history over time, so
+the alert rate tuned on days 1-7 does not hold later. It is kept in every per-rule table but left
+out of the headline combined set below.
+
+## Combined alert sets (headline excludes rule_baseline_anomaly)
+
+An account-day is alerted if any rule in the set fired. `combined_excl_baseline` = fan_in_out,
+structuring, pass_through, cycles (the headline set). `combined_incl_baseline` adds
+rule_baseline_anomaly. Alert volume of the combined sets is far above any single rule's, so compare
+them on precision/recall at their own volume, not with a single rule's budget.
+
+| alert_set | split | accounts | labelled | alerted | tp | precision | recall | per_1000 | txn_recall |
+|---|---|---|---|---|---|---|---|---|---|
+| combined_incl_baseline | all | 515088 | 6357 | 50715 | 2099 | 0.0414 | 0.3302 | 98.46 | 0.7093 |
+| combined_incl_baseline | tune | 513512 | 4064 | 16570 | 885 | 0.0534 | 0.2178 | 32.27 | 0.5765 |
+| combined_incl_baseline | validate | 361568 | 2652 | 40956 | 1004 | 0.0245 | 0.3786 | 113.27 | 0.7493 |
+| combined_excl_baseline | all | 515088 | 6357 | 19178 | 824 | 0.0430 | 0.1296 | 37.23 | 0.4014 |
+| combined_excl_baseline | tune | 513512 | 4064 | 12838 | 420 | 0.0327 | 0.1033 | 25.00 | 0.3766 |
+| combined_excl_baseline | validate | 361568 | 2652 | 11998 | 330 | 0.0275 | 0.1244 | 33.18 | 0.3377 |
 
 ## Transaction-level recall by pattern type (whole window)
 
 | pattern_type | rule_id | recall |
 |---|---|---|
+| BIPARTITE | combined_excl_baseline | 0.262 |
+| BIPARTITE | combined_incl_baseline | 0.555 |
 | BIPARTITE | rule_baseline_anomaly | 0.403 |
 | BIPARTITE | rule_cycles | 0.065 |
 | BIPARTITE | rule_fan_in_out | 0.053 |
 | BIPARTITE | rule_pass_through | 0.099 |
-| BIPARTITE | rule_structuring | 0.049 |
+| BIPARTITE | rule_structuring | 0.125 |
+| CYCLE | combined_excl_baseline | 0.491 |
+| CYCLE | combined_incl_baseline | 0.666 |
 | CYCLE | rule_baseline_anomaly | 0.439 |
 | CYCLE | rule_cycles | 0.286 |
 | CYCLE | rule_fan_in_out | 0.059 |
 | CYCLE | rule_pass_through | 0.132 |
-| CYCLE | rule_structuring | 0.077 |
+| CYCLE | rule_structuring | 0.118 |
+| FAN-IN | combined_excl_baseline | 0.195 |
+| FAN-IN | combined_incl_baseline | 0.761 |
 | FAN-IN | rule_baseline_anomaly | 0.673 |
 | FAN-IN | rule_cycles | 0.104 |
 | FAN-IN | rule_fan_in_out | 0.06 |
 | FAN-IN | rule_pass_through | 0.031 |
-| FAN-IN | rule_structuring | 0.038 |
+| FAN-IN | rule_structuring | 0.063 |
+| FAN-OUT | combined_excl_baseline | 0.459 |
+| FAN-OUT | combined_incl_baseline | 0.789 |
 | FAN-OUT | rule_baseline_anomaly | 0.62 |
 | FAN-OUT | rule_cycles | 0.105 |
 | FAN-OUT | rule_fan_in_out | 0.132 |
 | FAN-OUT | rule_pass_through | 0.149 |
-| FAN-OUT | rule_structuring | 0.219 |
+| FAN-OUT | rule_structuring | 0.246 |
+| GATHER-SCATTER | combined_excl_baseline | 0.344 |
+| GATHER-SCATTER | combined_incl_baseline | 0.874 |
 | GATHER-SCATTER | rule_baseline_anomaly | 0.768 |
 | GATHER-SCATTER | rule_cycles | 0.108 |
 | GATHER-SCATTER | rule_fan_in_out | 0.06 |
 | GATHER-SCATTER | rule_pass_through | 0.145 |
-| GATHER-SCATTER | rule_structuring | 0.099 |
+| GATHER-SCATTER | rule_structuring | 0.122 |
+| RANDOM | combined_excl_baseline | 0.304 |
+| RANDOM | combined_incl_baseline | 0.681 |
 | RANDOM | rule_baseline_anomaly | 0.508 |
 | RANDOM | rule_cycles | 0.105 |
 | RANDOM | rule_fan_in_out | 0.058 |
 | RANDOM | rule_pass_through | 0.157 |
-| RANDOM | rule_structuring | 0.063 |
+| RANDOM | rule_structuring | 0.12 |
+| SCATTER-GATHER | combined_excl_baseline | 0.363 |
+| SCATTER-GATHER | combined_incl_baseline | 0.716 |
 | SCATTER-GATHER | rule_baseline_anomaly | 0.597 |
 | SCATTER-GATHER | rule_cycles | 0.048 |
 | SCATTER-GATHER | rule_fan_in_out | 0.125 |
 | SCATTER-GATHER | rule_pass_through | 0.136 |
-| SCATTER-GATHER | rule_structuring | 0.115 |
+| SCATTER-GATHER | rule_structuring | 0.137 |
+| STACK | combined_excl_baseline | 0.29 |
+| STACK | combined_incl_baseline | 0.702 |
 | STACK | rule_baseline_anomaly | 0.541 |
 | STACK | rule_cycles | 0.028 |
 | STACK | rule_fan_in_out | 0.112 |
 | STACK | rule_pass_through | 0.131 |
-| STACK | rule_structuring | 0.067 |
+| STACK | rule_structuring | 0.159 |
+| UNTAGGED | combined_excl_baseline | 0.499 |
+| UNTAGGED | combined_incl_baseline | 0.657 |
 | UNTAGGED | rule_baseline_anomaly | 0.26 |
 | UNTAGGED | rule_cycles | 0.012 |
 | UNTAGGED | rule_fan_in_out | 0.467 |
 | UNTAGGED | rule_pass_through | 0.18 |
-| UNTAGGED | rule_structuring | 0.332 |
+| UNTAGGED | rule_structuring | 0.339 |
 
 ## Overlap between rules (whole window, distinct alerted accounts)
 
 | rule_a | rule_b | n_alerted_a | n_alerted_b | n_both | n_both_labelled | jaccard |
 |---|---|---|---|---|---|---|
 | rule_baseline_anomaly | rule_fan_in_out | 34203 | 5324 | 1084 | 94 | 0.0282 |
+| rule_pass_through | rule_structuring | 5618 | 9400 | 958 | 30 | 0.0681 |
+| rule_baseline_anomaly | rule_structuring | 34203 | 9400 | 845 | 28 | 0.0198 |
 | rule_baseline_anomaly | rule_pass_through | 34203 | 5618 | 793 | 51 | 0.0203 |
-| rule_pass_through | rule_structuring | 5618 | 3619 | 397 | 17 | 0.0449 |
-| rule_baseline_anomaly | rule_structuring | 34203 | 3619 | 362 | 16 | 0.0097 |
+| rule_fan_in_out | rule_structuring | 5324 | 9400 | 419 | 36 | 0.0293 |
 | rule_baseline_anomaly | rule_cycles | 34203 | 476 | 203 | 50 | 0.0059 |
-| rule_fan_in_out | rule_structuring | 5324 | 3619 | 178 | 23 | 0.0203 |
 | rule_cycles | rule_fan_in_out | 476 | 5324 | 175 | 13 | 0.0311 |
 | rule_fan_in_out | rule_pass_through | 5324 | 5618 | 138 | 20 | 0.0128 |
 | rule_cycles | rule_pass_through | 476 | 5618 | 5 | 5 | 0.0008 |
-| rule_cycles | rule_structuring | 476 | 3619 | 2 | 1 | 0.0005 |
+| rule_cycles | rule_structuring | 476 | 9400 | 5 | 2 | 0.0005 |
