@@ -36,6 +36,19 @@ models:
           - relationships: {arguments: {to: ref('dim_account'), field: account_id}}
       - name: is_laundering_account
         data_tests: [not_null]
+  - name: fct_alert_features
+    description: Point-in-time per-split account features for the ML comparison (see model header).
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {columns: [split, account_id]}
+    columns:
+      - name: split
+        data_tests:
+          - accepted_values: {arguments: {values: [tune, validate]}}
+      - name: label
+        data_tests: [not_null]
+      - name: f_n_sent
+        data_tests: [not_null]
   - name: fct_alerts
     description: "Union of wired rules. Contract: rule_id, account_id, alert_ts, score, reason."
     columns:
