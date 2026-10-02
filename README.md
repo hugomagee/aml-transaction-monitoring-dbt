@@ -1,5 +1,7 @@
 # aml-transaction-monitoring-dbt
 
+[![ci](https://github.com/hugomagee/aml-transaction-monitoring-dbt/actions/workflows/ci.yml/badge.svg)](https://github.com/hugomagee/aml-transaction-monitoring-dbt/actions/workflows/ci.yml)
+
 > Headline result: filled in once real numbers exist (build step 9).
 
 ## Input

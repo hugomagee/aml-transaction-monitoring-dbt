@@ -57,7 +57,7 @@ Every alert row: `rule_id, account_id, alert_ts, score, reason` (reason is a hum
 8. ML comparison.
 9. README finalised from real numbers, diagrams (lineage screenshot, architecture), tag `v1.0`.
 
-CI: GitHub Actions runs `dbt build` on a deterministic ~100k-row sample generated in the workflow from a fixed seed (stratified to keep laundering rows). The full dataset never runs in CI. Badge in README.
+CI: GitHub Actions loads a committed, deterministic 100,000-row HI-Small sample (`ci/sample/`, built by `scripts/make_ci_sample.py` from fixed seed `aml-ci-sample-v1`; all laundering rows kept, other rows hash-sampled in two strata, see `ci/sample/MANIFEST.json`) and runs `dbt build --exclude tag:hugo_rule`. The full dataset is never downloaded in CI. The sample is a derived subset of the Kaggle data committed on purpose so CI is fast and offline; it proves the pipeline builds and its tests hold, not rule performance. Reproduce locally with `make ci`. Badge in README.
 
 ## README skeleton
 Headline sentence with the main result, then `## Input`, `## Transformation`, `## Output`, `## Limitations`, `## Reproduce`, `## What I'd do next`.
