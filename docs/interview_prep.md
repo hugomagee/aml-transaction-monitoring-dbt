@@ -33,7 +33,8 @@ detection.
 | Exact duplicate transaction rows (HI) | 9 (kept) | EDA |
 | Cross-currency rows (HI) | 72,170; 15 payment currencies | EDA |
 | Patterns.txt (HI) | 370 groups, 8 types, 3,209 rows = 62% of laundering rows | EDA |
-| Volume shape | 0.2M-1.1M txns/day for days 1-10, then under 400/day | EDA daily table |
+| Volume shape | 0.2M-1.1M txns/day for days 1-10, then under 400/day; days 11-18 = 1,108 txns, 59% laundering (Kaggle page: Sep 1-10 is the primary period, later txns are laundering) | EDA daily table |
+| Data licence | CDLA-Sharing-1.0 (Erik Altman, IBM); redistributing a subset needs the same licence, attribution and a change notice (`ci/sample/NOTICE.md`) | Kaggle page, cdla.dev |
 | LI-Small | 6,924,049 txns, 3,565 laundering (0.05%), 17 days, 117 groups = 29% coverage | EDA |
 | Split | tune = days 1-7, validate = days 8-18 | `dbt_project.yml` |
 | Tune population / labelled | 513,512 accounts / 4,064 (0.79%); 3,027 laundering txns | `fct_rule_performance` |

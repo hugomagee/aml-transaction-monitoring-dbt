@@ -29,6 +29,12 @@ development; `LI-Small` is a never-tuned out-of-sample check. Only these six fil
 | accounts table rows | 518,581 | 712,688 |
 | pattern groups in `Patterns.txt` | 370 (cover 62% of laundering rows) | 117 (cover 29%) |
 
+**Licence and attribution.** The data is by Erik Altman (IBM), published on Kaggle under the Community Data
+License Agreement – Sharing – Version 1.0 ([text](https://cdla.dev/sharing-1-0/)); the dataset page asks
+anyone who publishes papers using it to cite the generator paper and code it links. The full data is not in
+this repository. `ci/sample/` holds a modified subset (rows removed, gzipped) redistributed under the same
+agreement, with the required credit and change notice in [ci/sample/NOTICE.md](ci/sample/NOTICE.md).
+
 All of these come from `python scripts/eda.py` (output in [docs/eda_notes.md](docs/eda_notes.md)).
 
 **Things in the raw data that shaped the model** (each is handled in staging and has a test):
@@ -40,7 +46,10 @@ All of these come from `python scripts/eda.py` (output in [docs/eda_notes.md](do
 - An account is identified by `(bank, account)`, not the account number alone: four account numbers
   appear at two banks each.
 - Volume is uneven: 0.2M to 1.1M transactions a day for days 1-10, then under 400 a day, while
-  laundering transactions continue (8 to 232 a day).
+  laundering transactions continue (8 to 232 a day). The Kaggle page describes Sep 1-10 as the "primary"
+  period of activity and notes that transactions after it are laundering; in HI-Small, days 11-18 hold 1,108
+  transactions of which 655 (59%) are laundering, against 0.10% before. Only 10 of the 361,568 validate accounts
+  are first active after day 10 (all 10 are labelled).
 - About 11.6% of rows are self-transfers (mostly `Reinvestment`); 9 exact duplicate rows are kept so that
   label counts reconcile with the raw file.
 - 15 currencies and no FX table; labels sit on transactions, not accounts; `Patterns.txt` covers only
@@ -326,6 +335,9 @@ rule), `fct_rule_*` evaluation marts, `fct_alert_features`, [docs/rule_results.m
 - **No case management, sanctions or KYC data**; no analyst feedback; no rule retraining over time.
 - **The CI sample** (`ci/sample/`, 100,000 rows) is a hash sample that keeps every laundering row but
   breaks graph structure; it proves the pipeline builds and its tests hold, not that the rules perform.
+  It is a modified subset of CDLA-Sharing-1.0 data, redistributed with the credit and change notice the
+  licence requires ([ci/sample/NOTICE.md](ci/sample/NOTICE.md)); the repository's own code has no licence
+  file yet.
 
 ## Reproduce
 
