@@ -361,13 +361,18 @@ Evaluate one rule: `make eval RULE=rule_fan_in_out` (runs its fixture first); fi
 
 - Re-run on real or less synthetic transaction data; the largest open question is whether anything here
   survives contact with data not produced by the patterns being detected.
-- Replace the whole-window hub degree with an as-of degree, and make every rule strictly point-in-time.
+- Make every rule strictly point-in-time, not only the features the ML model uses.
 - Use rolling-origin tuning and evaluation instead of one tune/validate cut; re-tune the baseline rule with
   a warm start so it transfers across days.
 - Add a real FX table and a defensible, documented risk weighting per payment format.
 - Make the cycles search cheaper (degree-aware pruning, per-day batching) so lower amount floors fit in
   memory, and report recall again.
-- Calibrate alert volume to analyst capacity, and add case-management feedback as a label source.
+- Add case-management feedback as a label source.
+- Run an exploratory second ablation that drops the USD-amount features, to test whether currency mix still
+  leaks simulator behaviour into the model (it would be a post-hoc list, so it would not change any claim above).
+- Tune each rule's precision under a real investigator-capacity constraint (alerts per analyst per day) instead of
+  the single 10-alerts-per-1,000 budget used here.
+- Give the cycles rule point-in-time hub degrees (degree as of the alert time) in place of the whole-window degree.
 
 ## Licence
 
