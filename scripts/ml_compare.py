@@ -50,7 +50,9 @@ def load(db: Path) -> pd.DataFrame:
     con = duckdb.connect(str(db), read_only=True)
     df = con.execute("select * from marts.fct_alert_features").df()
     con.close()
-    return df
+    # scikit-learn's histogram binning subsamples rows when there are >200k, so results depend on row
+    # order; the mart's order changes between dbt builds. Sort for run-to-run reproducibility.
+    return df.sort_values(["split", "account_id"], kind="stable").reset_index(drop=True)
 
 
 def in_train_group(account_id: str) -> bool:
@@ -143,33 +145,59 @@ def ml_precision_at_volume(df, scores, per_1000):
     return tp / k
 
 
+ML_VARIANTS = ["ML base", NO_ARTIFACT, "ML base+rules"]
+
+
+def _word(p_ml, p_rule):
+    return "beats" if p_ml > p_rule * 1.05 else ("level with" if p_ml > p_rule * 0.95 else "does NOT beat")
+
+
 def verdict(rows, label, df, model_scores):
     """Compare like with like: a rule only competes at a budget it can actually fill (>= 90% of it);
-    a rule that alerts fewer accounts is compared with ML at that rule's own volume."""
+    a rule that alerts fewer accounts is compared with each ML variant at that rule's own volume.
+    Every ML variant is reported separately (no 'best of' selection)."""
     lines = []
-    mls = [r for r in rows if r[0].startswith("ML")]
+    by = {r[0]: r for r in rows}
     rules = [r for r in rows if r[0].startswith(("rule_", "combined"))]
     for b in BUDGETS:
         full = [r for r in rules if r[2][b][2] >= 0.9 * b]
-        ml = max(mls, key=lambda r: r[2][b][0])
-        if full:
-            rule = max(full, key=lambda r: np.nan_to_num(r[2][b][0]))
-            rp, mp = rule[2][b][0], ml[2][b][0]
-            word = "beats" if mp > rp * 1.05 else ("is level with" if mp > rp * 0.95 else "does NOT beat")
-            lines.append(f"- {label}, {b} alerts/1,000: best rule that fills the budget is {rule[0]} at {rp:.1%} "
-                         f"precision; best ML ({ml[0]}) at {mp:.1%} {word} it (within 5% counts as level).")
+        if not full:
+            continue
+        rule = max(full, key=lambda r: np.nan_to_num(r[2][b][0]))
+        rp = rule[2][b][0]
+        parts = [f"{n} {by[n][2][b][0]:.1%} ({_word(by[n][2][b][0], rp)})" for n in ML_VARIANTS if n in by]
+        lines.append(f"- {label}, {b}/1,000: best rule that fills the budget is {rule[0]} at {rp:.1%}; "
+                     + "; ".join(parts) + ".")
     for r in rules:
         v = r[2][BUDGETS[-1]][2]
-        if v < 0.9 * BUDGETS[-1]:
-            p_rule = r[2][BUDGETS[-1]][0]
-            if np.isnan(p_rule):
-                continue
-            ml_name, ml_scores = max(model_scores.items(), key=lambda kv: ml_precision_at_volume(df, kv[1], v))
-            p_ml = ml_precision_at_volume(df, ml_scores, v)
-            word = "beats" if p_ml > p_rule * 1.05 else ("is level with" if p_ml > p_rule * 0.95 else "does NOT beat")
-            lines.append(f"- {label}, at {r[0]}'s own volume ({v:.2f}/1,000): rule precision {p_rule:.1%}; "
-                         f"best ML ({ml_name}) at the same volume {p_ml:.1%} {word} it.")
+        p_rule = r[2][BUDGETS[-1]][0]
+        if v < 0.9 * BUDGETS[-1] and not np.isnan(p_rule):
+            parts = []
+            for n in ML_VARIANTS:
+                if n in model_scores:
+                    p_ml = ml_precision_at_volume(df, model_scores[n], v)
+                    parts.append(f"{n} {p_ml:.1%} ({_word(p_ml, p_rule)})")
+            lines.append(f"- {label}, at {r[0]}'s own volume ({v:.2f}/1,000) rule precision is {p_rule:.1%}; "
+                         + "; ".join(parts) + ".")
     return "\n".join(lines)
+
+
+def ablation_table(rows, info):
+    """Full-feature vs artifact-free model next to the best rules, plus how much of the lead survives."""
+    keep = ["rule_fan_in_out", "rule_cycles", "combined_excl_baseline", "ML base", NO_ARTIFACT]
+    by = {r[0]: r for r in rows}
+    head = ("| method | PR-AUC | " + " | ".join(f"@{b}/1000: precision / recall [volume]" for b in BUDGETS) + " |\n"
+            "|---|---|" + "---|" * len(BUDGETS))
+    out = [head]
+    for k in keep:
+        _, ap, res = by[k]
+        cells = [f"{res[b][0]:.1%} / {res[b][1]:.1%} [{res[b][2]:.2f}]" for b in BUDGETS]
+        out.append(f"| {k} | {ap:.4f} | " + " | ".join(cells) + " |")
+    full, abl = by["ML base"], by[NO_ARTIFACT]
+    kept = [f"@{b}: {abl[2][b][0] / full[2][b][0]:.0%}" for b in BUDGETS]
+    out.append(f"\nBase rate {info['base']:.2%}. Share of the full model's precision kept after removing the "
+               f"artifact features: " + ", ".join(kept) + f"; PR-AUC kept {abl[1] / full[1]:.0%}.")
+    return "\n".join(out)
 
 
 def _selfcheck() -> None:
@@ -229,6 +257,10 @@ def main() -> None:
                                 scoring="average_precision", n_repeats=3, random_state=0, n_jobs=1)
     imp = pd.Series(pi.importances_mean, index=design(sample, feats_a).columns).clip(lower=0)
     imp = (imp / imp.sum()).sort_values(ascending=False).head(10)
+    pi2 = permutation_importance(models[NO_ARTIFACT][0], design(sample, feats_c), sample["label"].astype(int),
+                                 scoring="average_precision", n_repeats=3, random_state=0, n_jobs=1)
+    imp2 = pd.Series(pi2.importances_mean, index=design(sample, feats_c).columns).clip(lower=0)
+    imp2 = (imp2 / imp2.sum()).sort_values(ascending=False).head(10)
     n_tr, p_tr = len(tr), int(y_tr.sum())
     md = [f"""# ML vs rules at equal alert volume
 
@@ -253,28 +285,49 @@ Generated by `python scripts/ml_compare.py` (`make ml`); do not edit by hand.
 """]
     for title, rows, info in sections:
         md.append(f"## {title}\n\n{table(rows, info)}\n")
+    md.append("## Ablation: ML without the generator-artifact features\n")
+    md.append("**Exclusion list, declared before the ablation was run** (commit `8078a3a`, not edited since):\n\n"
+              + "\n".join(f"- `{k}`: {v}" for k, v in ARTIFACT_FEATURES.items())
+              + "\n\n**Kept on purpose, so a residual risk remains:** the USD amount features (they mix the FX seed "
+              "and currency choice; Bitcoin is about 20,000 USD per unit), `entity_type`, and the timing, degree "
+              "and per-day-rate features. If the artifact-free model still leads by a lot, this list may be "
+              "incomplete; the list was not widened after seeing results. One run, same fixed configuration, same "
+              "account-disjoint split.\n")
+    for (title, rows, info) in sections[:1] + li_rows[:1]:
+        md.append(f"### {title}\n\n{ablation_table(rows, info)}\n")
     md.append("## Verdict (generated from the tables above)\n")
     md.append(verdict(r_val, "HI validate", te_val, sc_val) + "\n")
     for (title, rows, info), sp in zip(li_rows, ("validate", "tune")):
         md.append(verdict(rows, title.split(":")[0], *ctx[sp]) + "\n")
     md.append("""## Reading these results (written by Claude Code after seeing them; not generated)
 
-- ML is far ahead of every rule at equal volume, on HI-Small (account-disjoint, later window) and on
-  LI-Small (a different dataset the model never saw). It is the opposite of "report only if it wins":
-  here the rules lose, and the single best rule (fan-in/out) is a modest lift over the base rate.
-- The base-feature model is the pre-declared primary. "Best ML" in the verdict lines picks between the
-  two variants after seeing the results, which is mildly optimistic; `ML base` alone is also ahead.
-- Do not read the ML lead as "ML detects laundering". The most important features (number of
-  currencies sent in, self-transfers, share of risky payment formats) look like properties of how the
-  synthetic generator produces laundering accounts, not of real laundering. The data is synthetic and
-  generated from the same patterns the rules look for; real-world transfer is untested.
+- With all features, ML is far ahead of every rule at equal alert volume, on HI-Small (account-disjoint,
+  later window) and on LI-Small (a dataset the model never saw). Here the rules lose, and the best rule
+  that can fill the budget (fan-in/out) is a modest lift over the base rate.
+- The ablation removes four features that were declared in advance as simulator-artifact proxies
+  (currency count, self-transfers, risky-format share, cross-currency share). Together they carried about
+  43% of the full model's permutation importance, so part of the original lead was artifact. The rest
+  of it survives on HI-Small: the artifact-free model keeps roughly two thirds of the full model's
+  precision at equal volume and about 56% of its PR-AUC, and still beats every rule that can fill the
+  budget at 1, 5 and 10 alerts per 1,000.
+- On LI-Small the artifact-free lead is much smaller: it beats the best rule at 1 and 10 alerts per 1,000
+  but is level with fan-in/out at 5 per 1,000, while its PR-AUC stays above every rule's.
+- Do not read the remainder as real laundering signal. The artifact-free model leans on USD amounts, volume,
+  degree and timing; the USD amounts mix the FX seed with currency choice, so they could still encode
+  simulator behaviour, and the exclusion list was fixed in advance and not widened after seeing results.
+  The data is synthetic and generated from the same patterns the rules look for; real-world transfer is untested.
 - `ML base+rules` is not reliably better than `ML base`: the rules were tuned on the same tune-split
   labels the model trains on, so their alert features look better in training than they are later.
-- Transfer to LI-Small is weaker than on HI-Small (lower base rate, 29% pattern coverage), though
-  still well above the rules.
+- Transfer to LI-Small is weaker than on HI-Small for every ML variant (lower base rate, 29% pattern coverage).
+- Reproducibility: scikit-learn's binning subsamples rows, so results depended on row order until the
+  loader sorted by (split, account_id). An unsorted run before that fix gave the full model 34.9% and the
+  artifact-free model 24.0% precision at 5 per 1,000 on HI validate (sorted: 35.4% and 24.5%), i.e. the
+  ablation conclusion does not depend on it.
 """)
     md.append("## Top base-feature importances (permutation, share of total, ML base, on a 40k train sample)\n\n"
               + "\n".join(f"- `{k}`: {v:.1%}" for k, v in imp.items()) + "\n")
+    md.append("## Top features of the artifact-free model (permutation, share of total)\n\n"
+              + "\n".join(f"- `{k}`: {v:.1%}" for k, v in imp2.items()) + "\n")
     export = {}
     for key, (title, rows, info) in zip(("HI_validate", "HI_tune", "LI_validate", "LI_tune"), sections):
         export[key] = {"title": title, "info": info, "rows": [
