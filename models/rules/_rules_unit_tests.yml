@@ -4,8 +4,6 @@ unit_tests:
   - name: test_rule_fan_in_out_fixture
     model: rule_fan_in_out
     description: "fi_A fan-in (5 senders in 4h) and fi_D fan-out (5 receivers in 8h) alert; fi_B (4 senders), fi_C (spread over 80h), fi_E (one counterparty x6) do not."
-    config:
-      tags: [hugo_rule]
     overrides:
       vars:
         fan_min_counterparties: 5
