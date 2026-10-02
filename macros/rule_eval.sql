@@ -4,23 +4,24 @@
 
   Unit: account. For a time split (day_index range):
     population       accounts with >=1 transaction in the range
-    labelled account population account with >=1 laundering transaction in the range
+    labelled         population account that is an endpoint of >=1 laundering transaction
+                     INSIDE the range (marts.fct_account_split_label); never uses later days
     alerted account  population account with >=1 alert row dated in the range
   splits: all; tune = days 1..tune_last_day; validate = the rest
   (--vars '{tune_last_day: N}', default 7, set in dbt_project.yml).
 #}
-{% macro rule_eval_base(alerts) %}
-splits as (
+{% macro eval_splits() %}
     select 'all' as split, 1 as day_from, 100000 as day_to
     union all select 'tune', 1, {{ var('tune_last_day') }}
     union all select 'validate', {{ var('tune_last_day') }} + 1, 100000
-),
+{% endmacro %}
+
+{% macro rule_eval_base(alerts) %}
+splits as ({{ eval_splits() }}),
 window_start as (select min(day) as d0 from {{ ref('int_account_activity_days') }}),
 pop as (
-    select s.split, a.account_id, sum(a.n_laundering_txns) as n_lab
-    from splits s
-    join {{ ref('int_account_activity_days') }} a on a.day_index between s.day_from and s.day_to
-    group by 1, 2
+    select split, account_id, n_laundering_txns as n_lab
+    from {{ ref('fct_account_split_label') }}
 ),
 alert_rows as (
     select account_id, score,
