@@ -44,8 +44,6 @@ unit_tests:
   - name: test_rule_structuring_fixture
     model: rule_structuring
     description: "st_A: 3 sends in [9000,10000) within 72h alerts at the 3rd. st_B only 2; st_C spread over 8 days; st_D above threshold; st_E below band; st_F self-transfers: none alert."
-    config:
-      tags: [hugo_rule]
     overrides:
       vars:
         structuring_threshold_usd: 10000

@@ -1,4 +1,4 @@
--- RULE: structuring                                                          (HUGO)
+-- RULE: structuring                                                          (CLAUDE CODE, autopilot)
 -- SCENARIO: a sender splits value into several payments just under a reporting
 --   threshold to avoid attention.
 -- SPEC (fixture-defining):
@@ -7,7 +7,7 @@
 --   Self-transfers are ignored. alert_ts = timestamp of the payment that completes
 --   the count. Score = number of in-band payments in the window.
 -- PARAMS: var('structuring_threshold_usd', 10000)  var('structuring_band_pct', 0.10)
---         var('structuring_min_txns', 3)           var('structuring_window_hours', 72)
+--         var('structuring_min_txns', 2)           var('structuring_window_hours', 72)
 -- NOTE: amount_usd uses static approximate FX (seeds/fx_rates_approx.csv); the band is
 --   only as good as that approximation. Say so in the README.
 -- INPUTS: ref('int_txn_enriched')  (txn_id, txn_ts, from_account_id, to_account_id,
@@ -22,13 +22,53 @@
 --                         e.g. "fan-in: 6 distinct senders within 24h, 31,200 USD total"
 -- Thresholds come from var() so the fixture can pin them; tune the defaults, not the fixture.
 
--- STUB: returns no rows. Replace the select below with your implementation.
--- Run the fixture:  make test-rule RULE=rule_structuring
--- Run on data:      make eval RULE=rule_structuring   (runs the fixture first)
+-- AUTHORED BY CLAUDE CODE (autopilot rules, requested by Hugo)
+--
+-- IMPLEMENTATION: keep non-self payments with amount_usd in [threshold*(1-band), threshold),
+-- then a trailing RANGE window per sender counts them. First time the count reaches
+-- structuring_min_txns is the alert, once per account per calendar day it holds; score is
+-- that day's peak count; the reason quotes the peak window.
+{% set thr = var('structuring_threshold_usd', 10000) %}
+{% set band = var('structuring_band_pct', 0.10) %}
+{% set n = var('structuring_min_txns', 2) %}
+{% set w = var('structuring_window_hours', 72) %}
+
+with in_band as (
+    select txn_id, txn_ts, from_account_id, amount_usd
+    from {{ ref('int_txn_enriched') }}
+    where not is_self_transfer
+      and amount_usd >= {{ thr }} * (1 - {{ band }})
+      and amount_usd <  {{ thr }}
+),
+windows as (
+    select
+        from_account_id, txn_ts,
+        count(*)        over w as n_txns,
+        sum(amount_usd) over w as usd
+    from in_band
+    window w as (
+        partition by from_account_id order by txn_ts
+        range between interval {{ w }} hours preceding and current row
+    )
+),
+agg as (
+    -- one alert per account per calendar day on which the condition holds: a persistent
+    -- offender keeps alerting, so every time split sees it (not only the first day)
+    select
+        from_account_id as account_id,
+        min(txn_ts)          as first_ts,
+        max(n_txns)          as peak_n,
+        arg_max(usd, n_txns) as peak_usd
+    from windows
+    where n_txns >= {{ n }}
+    group by from_account_id, cast(txn_ts as date)
+)
 select
-    cast('rule_structuring' as varchar)  as rule_id,
-    cast(null as varchar)  as account_id,
-    cast(null as timestamp) as alert_ts,
-    cast(null as double)   as score,
-    cast(null as varchar)  as reason
-where false
+    cast('rule_structuring' as varchar) as rule_id,
+    account_id,
+    first_ts                            as alert_ts,
+    cast(peak_n as double)              as score,
+    'structuring: ' || peak_n || ' payments of ' || format('{:,.0f}', cast({{ thr * (1 - band) }} as double))
+        || '-' || format('{:,.0f}', cast({{ thr }} as double)) || ' USD within {{ w }}h, '
+        || format('{:,.0f}', peak_usd) || ' USD total' as reason
+from agg
