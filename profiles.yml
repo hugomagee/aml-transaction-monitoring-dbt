@@ -7,3 +7,6 @@ aml_monitoring:
       type: duckdb
       path: "{{ env_var('AML_DB', 'data/aml.duckdb') }}"
       threads: 4
+      # Fail fast instead of filling the disk if a recursive rule explodes.
+      settings:
+        max_temp_directory_size: 3GB
