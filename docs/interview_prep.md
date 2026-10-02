@@ -41,7 +41,7 @@ detection.
 | Validate population / labelled | 361,568 accounts / 2,652 (0.73%); 2,150 laundering txns | same |
 | Discarded split | "last 3 days": 60 accounts, all labelled | `scripts/split_counts.py` |
 | LI base rate (whole window) | 0.75% (5,304 / 705,907) | `docs/rule_results.md` |
-| dbt build | 29 models, 2 seeds, 93 data tests + 9 unit tests = 133 nodes | `dbt build` |
+| dbt build | 26 models, 2 seeds, 99 data tests + 6 unit tests = 133 nodes | `dbt build` (counts from `target/manifest.json`) |
 | CI sample | 100,000 txns, all 5,177 laundering rows, 102,174 accounts, seed `aml-ci-sample-v1` | `ci/sample/MANIFEST.json` |
 
 **Rule results** (account level; precision / recall / alerts per 1,000 accounts):
