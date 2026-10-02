@@ -19,6 +19,6 @@ jobs:
       # dataset is never downloaded here.
       - name: Load CI sample
         run: AML_RAW_DIR=ci/sample AML_DB=data/ci.duckdb python scripts/load_raw.py hi
-      # Hugo's rule fixtures (tag hugo_rule) run once the rules exist.
+      # Rule fixtures run here too (none are tagged hugo_rule any more).
       - name: dbt build
         run: DBT_PROFILES_DIR=. AML_DB=data/ci.duckdb dbt build --exclude tag:hugo_rule
