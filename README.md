@@ -368,3 +368,10 @@ Evaluate one rule: `make eval RULE=rule_fan_in_out` (runs its fixture first); fi
 - Make the cycles search cheaper (degree-aware pruning, per-day batching) so lower amount floors fit in
   memory, and report recall again.
 - Calibrate alert volume to analyst capacity, and add case-management feedback as a label source.
+
+## Licence
+
+The code in this repository is released under the [MIT licence](LICENSE). The data sample in `ci/sample/` is
+a modified subset of the IBM AMLworld data and stays under the Community Data License Agreement – Sharing –
+Version 1.0, with credit to the data provider and a change notice in [ci/sample/NOTICE.md](ci/sample/NOTICE.md);
+the MIT licence does not cover it. That reading of the data licence is mine, not legal advice.
