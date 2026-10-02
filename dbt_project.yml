@@ -22,6 +22,9 @@ models:
     marts:
       +materialized: table
       +schema: marts
+    harness:
+      +materialized: table
+      +schema: harness
     rules:
       +materialized: table
       +schema: rules
